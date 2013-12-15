@@ -229,7 +229,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
     unsigned int *proxied_port) {
   register unsigned int i;
   char buf[PROXY_PROTOCOL_BUFSZ], *last = NULL, *ptr = NULL;
-  int have_tcp4 = FALSE, have_tcp6 = FALSE;
+  int have_cr = FALSE, have_nl = FALSE, have_tcp4 = FALSE, have_tcp6 = FALSE;
   size_t buflen;
 
   /* Read until we find the expected PROXY string. */
@@ -278,11 +278,14 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
      * CRLF sequence.
      */
     if (buf[i] == '\r') {
+        have_cr = TRUE;
         buf[i] = '\0';
       continue;
     }
 
-    if (buf[i] == '\n') {
+    if (have_cr == TRUE &&
+        buf[i] == '\n') {
+        have_nl = TRUE;
         buf[i] = '\0';
       break;
     }
@@ -295,6 +298,12 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
   pr_trace_msg(trace_channel, 7,
     "read %lu bytes of proxy data (minus CRLF): '%.100s'",
     (unsigned long) buflen, buf);
+
+  if (have_nl == FALSE) {
+    pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
+      ": missing expected CRLF termination");
+    goto bad_proto;
+  }
 
   last = buf + buflen;
 

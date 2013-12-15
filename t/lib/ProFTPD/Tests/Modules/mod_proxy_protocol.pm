@@ -38,6 +38,11 @@ my $TESTS = {
     test_class => [qw(forking mod_proxy_protocol)],
   },
 
+  proxy_protocol_bad_end_of_line => {
+    order => ++$order,
+    test_class => [qw(forking mod_proxy_protocol)],
+  },
+
   proxy_protocol_bad_proto => {
     order => ++$order,
     test_class => [qw(forking mod_proxy_protocol)],
@@ -420,6 +425,83 @@ sub proxy_protocol_bad_start_of_line {
 
       my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port);
       my $ok = $client->command("GET", '/index.html', 'HTTP/1.1')->response();
+      if ($ok == CMD_OK) {
+        die("Connection succeeded unexpectedly");
+      }
+    };
+
+    if ($@) {
+      $ex = $@;
+    }
+
+    $wfh->print("done\n");
+    $wfh->flush();
+
+  } else {
+    eval { server_wait($setup->{config_file}, $rfh, 10) };
+    if ($@) {
+      warn($@);
+      exit 1;
+    }
+
+    exit 0;
+  }
+
+  # Stop server
+  server_stop($setup->{pid_file});
+
+  $self->assert_child_ok($pid);
+
+  test_cleanup($setup->{log_file}, $ex);
+}
+
+sub proxy_protocol_bad_end_of_line {
+  my $self = shift;
+  my $tmpdir = $self->{tmpdir};
+  my $setup = test_setup($tmpdir, 'proxy_protocol');
+
+  my $config = {
+    PidFile => $setup->{pid_file},
+    ScoreboardFile => $setup->{scoreboard_file},
+    SystemLog => $setup->{log_file},
+
+    AuthUserFile => $setup->{auth_user_file},
+    AuthGroupFile => $setup->{auth_group_file},
+
+    IfModules => {
+      'mod_delay.c' => {
+        DelayEngine => 'off',
+      },
+
+      'mod_proxy_protocol.c' => {
+        ProxyProtocolEngine => 'on',
+      },
+    },
+  };
+
+  my ($port, $config_user, $config_group) = config_write($setup->{config_file},
+    $config);
+
+  # Open pipes, for use between the parent and child processes.  Specifically,
+  # the child will indicate when it's done with its test by writing a message
+  # to the parent.
+  my ($rfh, $wfh);
+  unless (pipe($rfh, $wfh)) {
+    die("Can't open pipe: $!");
+  }
+
+  my $ex;
+
+  # Fork child
+  $self->handle_sigchld();
+  defined(my $pid = fork()) or die("Can't fork: $!");
+  if ($pid) {
+    eval {
+      sleep(2);
+
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port);
+      my $ok = $client->command("PROXY", 'TCP4', '1.1.1.1', '2.2.2.2', '111',
+        '222', 'A' x 128)->response();
       if ($ok == CMD_OK) {
         die("Connection succeeded unexpectedly");
       }
