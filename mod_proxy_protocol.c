@@ -35,9 +35,9 @@
 
 module proxy_protocol_module;
 
-#define PROXY_PROTOCOL_BUFSZ			512
+#define PROXY_PROTOCOL_BUFSZ			128
 
-#define PROXY_PROTOCOL_TIMEOUT_DEFAULT		5
+#define PROXY_PROTOCOL_TIMEOUT_DEFAULT		3
 static int proxy_protocol_timeout = PROXY_PROTOCOL_TIMEOUT_DEFAULT;
 
 #define PROXY_PROTOCOL_VERSION_HAPROXY_V1	1
@@ -225,12 +225,11 @@ static unsigned int strtou(const char **str, const char *last) {
  *  - SRC4:  layer 4 (e.g. TCP port) source address in standard text form
  *  - DST4:  layer 4 (e.g. TCP port) destination address in standard text form
  */
-static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
+static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
     unsigned int *proxied_port) {
   register unsigned int i;
   char buf[PROXY_PROTOCOL_BUFSZ], *last = NULL, *ptr = NULL;
   int have_tcp4 = FALSE, have_tcp6 = FALSE;
-  pr_netaddr_t *proxied_addr = NULL;
   size_t buflen;
 
   /* Read until we find the expected PROXY string. */
@@ -260,7 +259,7 @@ static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
         pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
           ": error reading from client socket: %s", strerror(xerrno));
         errno = xerrno;
-        return NULL;
+        return -1;
       }
     }
 
@@ -383,7 +382,7 @@ static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
           ": expected IPv4 source address for '%s', got IPv6",
           pr_netaddr_get_ipstr(src_addr));
         errno = EINVAL;
-        return NULL;
+        return -1;
       }
 
       if (pr_netaddr_get_family(dst_addr) != AF_INET) {
@@ -391,7 +390,7 @@ static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
           ": expected IPv4 destination address for '%s', got IPv6",
           pr_netaddr_get_ipstr(dst_addr));
         errno = EINVAL;
-        return NULL;
+        return -1;
       }
 
 #ifdef PR_USE_IPV6
@@ -401,7 +400,7 @@ static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
           ": expected IPv6 source address for '%s', got IPv4",
           pr_netaddr_get_ipstr(src_addr));
         errno = EINVAL;
-        return NULL;
+        return -1;
       }
 
       if (pr_netaddr_get_family(dst_addr) != AF_INET6) {
@@ -409,7 +408,7 @@ static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
           ": expected IPv6 destination address for '%s', got IPv4",
           pr_netaddr_get_ipstr(dst_addr));
         errno = EINVAL;
-        return NULL;
+        return -1;
       }
 #endif /* PR_USE_IPV6 */
     }
@@ -436,6 +435,12 @@ static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
       pr_trace_msg(trace_channel, 9, "resolved source port: %u", src_port);
     }
 
+    if (src_port > 65535) {
+      pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+        ": out-of-range source port provided: %u", src_port);
+      goto bad_proto;
+    }
+
     ptr = ptr2 + 1;
     pr_trace_msg(trace_channel, 9,
       "resolving destination port field '%s'", ptr);
@@ -450,6 +455,12 @@ static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
     } else {
       *ptr2 = ' ';
       pr_trace_msg(trace_channel, 9, "resolved destination port: %u", dst_port);
+    }
+
+    if (dst_port > 65535) {
+      pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+        ": out-of-range destination port provided: %u", dst_port);
+      goto bad_proto;
     }
 
     if (ptr > last) {
@@ -478,8 +489,14 @@ static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
      * which might be useful information.
      */
 
-    proxied_addr = src_addr;
+    *proxied_addr = src_addr;
     *proxied_port = src_port;
+
+  } else if (strncmp(ptr, "UNKNOWN", 7) == 0) {
+    pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
+      ": client cannot provide proxied address: '%.100s'", buf);
+    errno = ENOENT;
+    return 0;
 
   } else {
     pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
@@ -487,7 +504,7 @@ static pr_netaddr_t *read_haproxy_v1(pool *p, conn_t *conn,
     goto bad_proto;
   }
  
-  return proxied_addr;
+  return 1;
 
 bad_proto:
   pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
@@ -495,25 +512,25 @@ bad_proto:
     pr_netaddr_get_ipstr(conn->remote_addr));
 
   errno = EINVAL;
-  return NULL;
+  return -1;
 }
 
-static pr_netaddr_t *read_proxied_addr(pool *p, conn_t *conn,
-    unsigned int *proxied_port) {
-  pr_netaddr_t *proxied_addr = NULL;
+static int read_proxied_addr(pool *p, conn_t *conn,
+   pr_netaddr_t **proxied_addr, unsigned int *proxied_port) {
+  int res;
 
   switch (proxy_protocol_version) {
     case PROXY_PROTOCOL_VERSION_HAPROXY_V1:
-      proxied_addr = read_haproxy_v1(p, conn, proxied_port);
+      res = read_haproxy_v1(p, conn, proxied_addr, proxied_port);
       break;
 
     case PROXY_PROTOCOL_VERSION_HAPROXY_V2:
     default:
       errno = ENOSYS;
-      proxied_addr = NULL;
+      res = -1;
   }
 
-  return proxied_addr;
+  return res;
 }
 
 static int proxy_protocol_timeout_cb(CALLBACK_FRAME) {
@@ -599,7 +616,7 @@ MODRET set_proxyprotocolversion(cmd_rec *cmd) {
 
 static int proxy_protocol_sess_init(void) {
   config_rec *c;
-  int engine = 0, timerno = -1, xerrno;
+  int engine = 0, res = 0, timerno = -1, xerrno;
   pr_netaddr_t *proxied_addr = NULL;
   unsigned int proxied_port = 0;
   const char *remote_ip = NULL, *remote_name = NULL;
@@ -645,7 +662,8 @@ static int proxy_protocol_sess_init(void) {
     }
   }
 
-  proxied_addr = read_proxied_addr(session.pool, session.c, &proxied_port);
+  res = read_proxied_addr(session.pool, session.c, &proxied_addr,
+    &proxied_port);
   xerrno = errno;
 
   if (tls_ctrl_netio != NULL) {
@@ -659,7 +677,7 @@ static int proxy_protocol_sess_init(void) {
     pr_timer_remove(timerno, &proxy_protocol_module);
   }
 
-  if (proxied_addr == NULL) {
+  if (res < 0) {
     pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
       ": error reading proxy info: %s", strerror(xerrno));
 
@@ -667,47 +685,49 @@ static int proxy_protocol_sess_init(void) {
     return -1;
   }
 
-  remote_ip = pstrdup(session.pool,
-    pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()));
-  remote_name = pstrdup(session.pool,
-    pr_netaddr_get_sess_remote_name());
+  if (proxied_addr != NULL) {
+    remote_ip = pstrdup(session.pool,
+      pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()));
+    remote_name = pstrdup(session.pool,
+      pr_netaddr_get_sess_remote_name());
 
-  pr_log_debug(DEBUG9, MOD_PROXY_PROTOCOL_VERSION
-    ": using proxied source address: %s", pr_netaddr_get_ipstr(proxied_addr));
+    pr_log_debug(DEBUG9, MOD_PROXY_PROTOCOL_VERSION
+      ": using proxied source address: %s", pr_netaddr_get_ipstr(proxied_addr));
 
-  session.c->remote_addr = proxied_addr;
-  session.c->remote_port = proxied_port;
+    session.c->remote_addr = proxied_addr;
+    session.c->remote_port = proxied_port;
 
-  /* Now perform reverse DNS lookups. */
-  if (ServerUseReverseDNS) {
-    int reverse_dns;
+    /* Now perform reverse DNS lookups. */
+    if (ServerUseReverseDNS) {
+      int reverse_dns;
 
-    reverse_dns = pr_netaddr_set_reverse_dns(ServerUseReverseDNS);
-    session.c->remote_name = pr_netaddr_get_dnsstr(session.c->remote_addr);
+      reverse_dns = pr_netaddr_set_reverse_dns(ServerUseReverseDNS);
+      session.c->remote_name = pr_netaddr_get_dnsstr(session.c->remote_addr);
 
-    pr_netaddr_set_reverse_dns(reverse_dns);
+      pr_netaddr_set_reverse_dns(reverse_dns);
 
-  } else {
-    session.c->remote_name = pr_netaddr_get_ipstr(session.c->remote_addr);
-  }
+    } else {
+      session.c->remote_name = pr_netaddr_get_ipstr(session.c->remote_addr);
+    }
 
-  pr_netaddr_set_sess_addrs();
+    pr_netaddr_set_sess_addrs();
 
-  pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
-    ": UPDATED client remote address/name: %s/%s (WAS %s/%s)",
-    pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()),
-    pr_netaddr_get_sess_remote_name(), remote_ip, remote_name);
+    pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+      ": UPDATED client remote address/name: %s/%s (WAS %s/%s)",
+      pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()),
+      pr_netaddr_get_sess_remote_name(), remote_ip, remote_name);
 
-  /* Find the new class for this session. */
-  session.conn_class = pr_class_match_addr(session.c->remote_addr);
-  if (session.conn_class != NULL) {
-    pr_log_debug(DEBUG2, MOD_PROXY_PROTOCOL_VERSION
-      ": session requested from proxied client in '%s' class",
-      session.conn_class->cls_name);
+    /* Find the new class for this session. */
+    session.conn_class = pr_class_match_addr(session.c->remote_addr);
+    if (session.conn_class != NULL) {
+      pr_log_debug(DEBUG2, MOD_PROXY_PROTOCOL_VERSION
+        ": session requested from proxied client in '%s' class",
+        session.conn_class->cls_name);
 
-  } else {
-    pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
-      ": session requested from proxied client in unknown class");
+    } else {
+      pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
+        ": session requested from proxied client in unknown class");
+    }
   }
  
   return 0;

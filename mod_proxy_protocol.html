@@ -1,0 +1,200 @@
+<html>
+<head>
+<title>ProFTPD module mod_proxy_protocol</title>
+</head>
+
+<body bgcolor=white>
+
+<hr>
+<center>
+<h2><b>ProFTPD module <code>mod_proxy_protocol</code></b></h2>
+</center>
+<hr><br>
+
+<p>
+The purpose of the <code>mod_proxy_protocol</code> module is to handle
+protocols which are used by proxies, <i>e.g.</i> <code>haproxy</code>, for
+conveying information about the real origin/client to the backend server.
+Protocols like HTTP often have their own mechanism for doing so, via headers
+such as "X-Forwarded-For".  Unfortunately, FTP does <b>not</b> have such a
+mechanism, nor does SSH.
+
+<p>
+However, there <em>are</em> protocols which an provide this information without
+impacting FTP.  HAproxy's <a href="http://haproxy.1wt.eu/download/1.5/doc/proxy-protocol.txt"><code>PROXY</code></a> protocol is one such mechanism.  The
+<code>mod_proxy_protocol</code> module uses these mechanisms to change the
+information about the "remote" client so that it is the real client, not the
+proxy, whose IP address/port are logged and used for <i>e.g.</i> network ACLs.
+
+<p>
+This module is contained in the <code>mod_proxy_protocol.c</code> file for
+ProFTPD 1.3.<i>x</i>, and is not compiled by default.  Installation
+instructions are discussed <a href="#Installation">here</a>; detailed
+notes on best practices for using this module are <a href="#Usage">here</a>.
+
+<p>
+The most current version of <code>mod_proxy_protocol</code> can be found at:
+<pre>
+  <a href="https://github.com/Castaglia/proftpd-mod_proxy_protocol.git">https://github.com/Castaglia/proftpd-mod_proxy_protocol.git</a>
+</pre>
+
+<h2>Author</h2>
+<p>
+Please contact TJ Saunders &lt;tj <i>at</i> castaglia.org&gt; with any
+questions, concerns, or suggestions regarding this module.
+
+<h2>Directives</h2>
+<ul>
+  <li><a href="#ProxyProtocolEngine">ProxyProtocolEngine</a>
+  <li><a href="#ProxyProtocolTimeout">ProxyProtocolTimeout</a>
+  <li><a href="#ProxyProtocolVersion">ProxyProtocolVersion</a>
+</ul>
+
+<p>
+<hr>
+<h2><a name="ProxyProtocolEngine">ProxyProtocolEngine</a></h2>
+<strong>Syntax:</strong> ProxyProtocolEngine <em>on|off</em><br>
+<strong>Default:</strong> None<br>
+<strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>
+<strong>Module:</strong> mod_proxy_protocol<br>
+<strong>Compatibility:</strong> 1.3.5rc4 and later
+
+<p>
+The <code>ProxyProtocolEngine</code> directive enables the expectation
+and handling of protocols which provide information on proxied connections;
+support for these protocols is provided by <code>mod_proxy_protocol</code>.
+
+<p>
+<hr>
+<h2><a name="ProxyProtocolTimeout">ProxyProtocolTimeout</a></h2>
+<strong>Syntax:</strong> ProxyProtocolTimeout <em>seconds</em><br>
+<strong>Default:</strong> 3sec<br>
+<strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>
+<strong>Module:</strong> mod_proxy_protocol<br>
+<strong>Compatibility:</strong> 1.3.5rc4 and later
+
+<p>
+The <code>ProxyProtocolTimeout</code> directive is used to configure the
+amount of time, in seconds, that <code>mod_proxy_protocol</code> will wait to
+receive the full expected proxy information.  If the full information is
+not received within the given number of seconds, the connection to the client
+is closed.
+
+<p>
+<hr>
+<h2><a name="ProxyProtocolVersion">ProxyProtocolVersion</a></h2>
+<strong>Syntax:</strong> ProxyProtocolVersion <em>protocolVersion</em><br>
+<strong>Default:</strong> haproxyV1<br>
+<strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>
+<strong>Module:</strong> mod_proxy_protocol<br>
+<strong>Compatibility:</strong> 1.3.5rc4 and later
+
+<p>
+The <code>ProxyProtocolVersion</code> directive is used to configure the
+protocol that <code>mod_proxy_protocol</code> expects to handle.
+
+<p>
+<b>Note</b>: Only the "haproxyV1" protocol is currently implemented in
+<code>mod_proxy_protocol</code>.
+
+<p>
+<hr>
+<h2><a name="Usage">Usage</a></h2>
+
+<p>
+<b>Example Configuration</b><br>
+<pre>
+  &lt;IfModule mod_proxy_protocol.c&gt;
+    ProxyProtocolEngine on
+    ProxyProtocolTimeout 3sec
+  &lt;/IfModule&gt;
+</pre>
+
+<p>
+<b>Module Load Order</b><br>
+In order for <code>mod_proxy_protocol</code> to work its magic, it <b>must</b>
+the first module in line to handle the bytes coming in from the client.
+If some other module (such as <code>mod_sftp</code> or <code>mod_tls</code>)
+tries to handle the incoming bytes first, Bad Things will happen, since those
+modules will expect different protocols than the <code>PROXY</code> protocol.
+
+<p>
+For <code>mod_proxy_protocol</code> to be the first module called, it must
+the <b>last</b> module loaded.  To do this as a static module, you would
+use something like this when building proftpd:
+<pre>
+  # ./configure --with-modules=...:mod_proxy_protocol
+</pre>
+ensuring that <code>mod_proxy_protocol</code> is the <b>last</b> module in
+your <code>--with-modules</code> list.
+
+<p>
+As a shared module, configuring <code>mod_proxy_protocol</code> to be the
+last module loaded is much easier.  Your configuration will have a list
+of <code>LoadModule</code> directives; the last of which would be:
+<pre>
+  LoadModule mod_proxy_protocol.c
+</pre>
+
+<p>
+<b>Trusting Senders of Proxy Data</b><br>
+Use of these proxy protocols means changes in audit trails and/or client
+access permissions (<i>e.g.</i> different <code>mod_wrap2</code> and/or
+<code>mod_geoip</code> rules will apply).  Unscrupulous senders may try to
+actively lie to your server about the original client using these protocols.
+Thus you <b>must</b> trust the upstream machines <b>before</b> enabling the
+<code>mod_proxy_protocol</code> module.
+
+<p>
+Put another way: do <b>not</b> use the <code>mod_proxy_protocol</code> module
+if your server handles connections from the open Internet.  Doing so means
+that any machine can use the proxy protocol to hide their activities, or
+make it look like the connection is coming from someone else.  <b>Only accept
+proxy information from trusted sources.</b>
+
+<p>
+<hr>
+<h2><a name="Installation">Installation</a></h2>
+To install <code>mod_proxy_protocol</code>, copy the
+<code>mod_proxy_protocol.c</code> file into:
+<pre>
+  <i>proftpd-dir</i>/contrib/
+</pre>
+after unpacking the latest proftpd-1.3.<i>x</i> source code.  For including
+<code>mod_proxy_protocol</code> as a staticly linked module:
+<pre>
+  ./configure --with-modules=mod_proxy_protocol
+</pre>
+To build <code>mod_proxy_protocol</code> as a DSO module:
+<pre>
+  ./configure --enable-dso --with-shared=mod_proxy_protocol
+</pre>
+Then follow the usual steps:
+<pre>
+  make
+  make install
+</pre>
+
+<p>
+For those with an existing ProFTPD installation, you can use the
+<code>prxs</code> tool to add <code>mod_proxy_protocol</code>, as a DSO module,
+to your existing server:
+<pre>
+  # prxs -c -i -d mod_proxy_protocol.c
+</pre>
+
+<p>
+<hr>
+Author: <i>$Author: tj $</i><br>
+Last Updated: <i>$Date: 2009/10/19 16:30:18 $</i><br>
+<hr>
+
+<font size=2><b><i>
+&copy; Copyright 2013 TJ Saunders<br>
+ All Rights Reserved<br>
+</i></b></font>
+
+<hr>
+</body>
+</html>
+
