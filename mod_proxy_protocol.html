@@ -107,6 +107,9 @@ protocol that <code>mod_proxy_protocol</code> expects to handle.
   &lt;IfModule mod_proxy_protocol.c&gt;
     ProxyProtocolEngine on
     ProxyProtocolTimeout 3sec
+
+    # Necessary to allow data transfers
+    AllowForeignAddress on
   &lt;/IfModule&gt;
 </pre>
 
@@ -151,6 +154,43 @@ if your server handles connections from the open Internet.  Doing so means
 that any machine can use the proxy protocol to hide their activities, or
 make it look like the connection is coming from someone else.  <b>Only accept
 proxy information from trusted sources.</b>
+
+<p>
+<b>Why <code>AllowForeignAddress</code> Is Needed</b><br>
+One of the consequences of allowing <code>mod_proxy_protocol</code> to change
+the remote IP address is that security checks performed on data transfers
+will cause problems.  For active data transfers (<i>i.e.</i> for clients
+which send the <code>PORT</code> or <code>EPRT</code> commands),
+<code>proftpd</code> requires that the IP address sent in the command matches
+the IP address of the client which sends the command.  Otherwise, a message
+like the following is logged:
+<pre>
+  Refused PORT 127,0,0,1,218,225 (address mismatch)
+</pre>
+and the command is rejected.
+
+<p>
+Similarly for passive data transfers (<i>i.e.</i> for clients which send the
+<code>PASV</code> or <code>EPSV</code> commands), <code>proftpd</code> requires
+that the remote IP address of the client which connects to the data transfer
+address <b>must</b> match the remote IP address of the client on the control
+connection.  If the addresses do no match, then the following is logged:
+<pre>
+  SECURITY VIOLATION: Passive connection from 127.0.0.1 rejected.
+</pre>
+and the control connection is closed.
+
+<p>
+These security measures are done to prevent abuses of FTP data transfers
+such as the <a href="http://www.proftpd.org/docs/howto/FXP.html">FTP bounce</a>
+attack.  However, the very fact that <code>mod_proxy_protocol</code> changes
+the remote IP address means that to allow data transfers when using this module,
+you need to use:
+<pre>
+  AllowForeignAddress on
+</pre>
+in same virtual host section in which the <code>ProxyProtocolEngine</code>
+directive appears.
 
 <p>
 <hr>

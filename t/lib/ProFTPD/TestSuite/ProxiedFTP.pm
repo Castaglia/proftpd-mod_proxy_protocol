@@ -4,109 +4,63 @@ use strict;
 use vars qw(@ISA);
 
 use Carp;
-use IO::Socket::INET;
-use Net::Cmd;
+use Net::FTP;
 
-@ISA = qw(Net::Cmd IO::Socket::INET);
+@ISA = qw(Net::FTP);
+
+my $proxy_info = undef;
 
 sub new {
   my $class = shift;
-  my ($addr, $port, $timeout) = @_;
+  my ($addr, $port, $proxy, $timeout) = @_;
   $timeout = 5 unless defined($timeout);
   my $debug = undef;
 
-  my $self = $class->SUPER::new(
-    PeerHost => $addr,
-    PeerPort => $port,
-    Proto => 'tcp',
-    Type => SOCK_STREAM,
-    ReuseAddr => 1,
-    Blocking => 1,
-    Timeout => $timeout,
-  );
-  return undef unless $self;
+  $proxy_info = $proxy;
 
   if ($ENV{TEST_VERBOSE}) {
     $debug = 10;
   }
 
-  $self->debug($debug);
+  my $self = $class->SUPER::new($addr,
+    Port => $port,
+    Timeout => $timeout,
+    Debug => $debug,
+  );
 
-  bless($self, $class);
+  unless ($self) {
+    croak($@);
+  }
+
   return $self;
 }
 
-sub response_code {
+# Override response() from Net::Cmd to trigger sending the PROXY command
+sub response {
   my $self = shift;
-  return $self->code;
-}
 
-sub response_msg {
-  my $self = shift;
-  return $self->message;
-}
+  if (defined($proxy_info)) {
+    if (ref($proxy_info)) {
+      my ($proto, $src_addr, $dst_addr, $src_port, $dst_port) = @$proxy_info;
+      $self->command("PROXY", $proto, $src_addr,  $dst_addr, $src_port, $dst_port);
 
-sub send_proxy_raw {
-  my $self = shift;
-  my ($src_addr, $dst_addr, $src_port, $dst_port, $proto) = @_;
-  $src_addr = '127.0.0.1' unless defined($src_addr);
-  $dst_addr = '127.0.0.1' unless defined($dst_addr);
-  $src_port = $self->sockport() unless defined($src_port);
-  $dst_port = $self->sockport() unless defined($dst_port);
-  $proto = 'TCP4' unless defined($proto);
+    } else {
+      $self->rawdatasend($proxy_info);
+    }
 
-  # Send PROXY message
-  $self->command("PROXY", $proto, $src_addr,  $dst_addr, $src_port, $dst_port);
-}
-
-sub send_proxy {
-  my $self = shift;
-  $self->send_proxy_raw(@_);
-
-  my $ex;
-
-  unless ($self->response() == CMD_OK) {
-    $self->close();
-    $ex = $self->message;
-    undef $self;
+    $proxy_info = undef;
   }
 
-  croak($ex) if defined($ex);
-  return 1;
+  $self->SUPER::response();
 }
 
 sub login {
   my $self = shift;
-  my $user = shift;
-  my $pass = shift;
 
-  my $ex;
-
-  my $ok = $self->command("USER", $user)->response();
-  if ($ok == CMD_OK || $ok == CMD_MORE) {
-    $ok = $self->command("PASS", $pass)->response();
-    unless ($ok == CMD_OK || $ok == CMD_MORE) {
-      $ex = $self->message;
-    }
-
-  } else {
-    $ex = $self->message;
+  unless ($self->SUPER::login(@_)) {
+    croak("Failed to login: " . $self->code . " " . $self->message);
   }
 
-  croak($ex) if defined($ex); 
-  $ok == CMD_OK;
+  return 1;
 }
-
-sub quit {
-  my $self = shift;
-  my $ok = $self->command("QUIT")->response();
-  $self->close();
-
-  unless ($ok == CMD_OK || $ok == CMD_MORE) {
-    croak($self->message);
-  }
-
-  $ok == CMD_OK;
-}
-
 1;
