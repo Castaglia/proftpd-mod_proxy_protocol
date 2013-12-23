@@ -324,6 +324,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
     pr_netaddr_t *src_addr = NULL, *dst_addr = NULL;
     char *ptr2 = NULL;
     unsigned int src_port, dst_port;
+    int flags = PR_NETADDR_GET_ADDR_FL_ADDRS_ONLY;
 
     ptr += 5;
 
@@ -335,7 +336,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
     *ptr2 = '\0';
     pr_trace_msg(trace_channel, 9,
       "resolving source address field '%s'", ptr);
-    src_addr = pr_netaddr_get_addr2(p, ptr, NULL, 0);
+    src_addr = pr_netaddr_get_addr2(p, ptr, NULL, flags);
 
     if (src_addr == NULL) {
       pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
@@ -358,7 +359,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
     *ptr2 = '\0';
     pr_trace_msg(trace_channel, 9,
       "resolving destination address field '%s'", ptr);
-    dst_addr = pr_netaddr_get_addr2(p, ptr, NULL, 0);
+    dst_addr = pr_netaddr_get_addr2(p, ptr, NULL, flags);
 
     if (dst_addr == NULL) {
       pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
