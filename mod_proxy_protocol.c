@@ -420,6 +420,15 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
         errno = EINVAL;
         return -1;
       }
+
+      /* Handle IPv4-mapped IPv6 addresses as IPv4 addresses. */
+      if (pr_netaddr_is_v4mappedv6(src_addr) == TRUE) {
+        src_addr = pr_netaddr_v6tov4(p, src_addr);
+      }
+
+      if (pr_netaddr_is_v4mappedv6(dst_addr) == TRUE) {
+        dst_addr = pr_netaddr_v6tov4(p, dst_addr);
+      }
 #endif /* PR_USE_IPV6 */
     }
 
