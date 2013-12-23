@@ -324,7 +324,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
     pr_netaddr_t *src_addr = NULL, *dst_addr = NULL;
     char *ptr2 = NULL;
     unsigned int src_port, dst_port;
-    int flags = PR_NETADDR_GET_ADDR_FL_ADDRS_ONLY;
+    int flags = PR_NETADDR_GET_ADDR_FL_EXCL_DNS;
 
     ptr += 5;
 
