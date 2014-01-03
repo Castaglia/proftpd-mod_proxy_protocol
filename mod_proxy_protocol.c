@@ -1,6 +1,6 @@
 /*
  * ProFTPD - mod_proxy_protocol
- * Copyright (c) 2013 TJ Saunders
+ * Copyright (c) 2013-2014 TJ Saunders
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -639,7 +639,7 @@ static int proxy_protocol_sess_init(void) {
   pr_netaddr_t *proxied_addr = NULL;
   unsigned int proxied_port = 0;
   const char *remote_ip = NULL, *remote_name = NULL;
-  pr_netio_t *tls_ctrl_netio = NULL;
+  pr_netio_t *tls_netio = NULL;
 
   c = find_config(main_server->conf, CONF_PARAM, "ProxyProtocolEngine", FALSE);
   if (c != NULL) {
@@ -666,27 +666,30 @@ static int proxy_protocol_sess_init(void) {
       "ProxyProtocolTimeout");
   }
 
-  /* If the mod_tls module is loaded, then we need to work around its
+  /* If the mod_tls module is in effect, then we need to work around its
    * use of the NetIO API.  Otherwise, trying to read the proxied address
    * on the control connection will cause problems, e.g. for FTPS clients
    * using implicit TLS.
    */
-  if (pr_module_exists("mod_tls.c")) {
-    tls_ctrl_netio = pr_get_netio(PR_NETIO_STRM_CTRL);
+  tls_netio = pr_get_netio(PR_NETIO_STRM_CTRL);
+  if (tls_netio == NULL ||
+      tls_netio->owner_name == NULL ||
+      strncmp(tls_netio->owner_name, "tls", 4) != 0) {
 
-    if (tls_ctrl_netio != NULL) {
-      /* Unregister it; we'll put it back after reading the proxied address.
-       */
-      pr_unregister_netio(PR_NETIO_STRM_CTRL);
-    }
+    /* Not a mod_tls netio; ignore it. */
+    tls_netio = NULL;
+
+  } else {
+    /* Unregister it; we'll put it back after reading the proxied address. */
+    pr_unregister_netio(PR_NETIO_STRM_CTRL);
   }
 
   res = read_proxied_addr(session.pool, session.c, &proxied_addr,
     &proxied_port);
   xerrno = errno;
 
-  if (tls_ctrl_netio != NULL) {
-    if (pr_register_netio(tls_ctrl_netio, PR_NETIO_STRM_CTRL) < 0) {
+  if (tls_netio != NULL) {
+    if (pr_register_netio(tls_netio, PR_NETIO_STRM_CTRL) < 0) {
       pr_log_debug(DEBUG1, MOD_PROXY_PROTOCOL_VERSION
         ": unable to re-register TLS control NetIO: %s", strerror(errno));
     }

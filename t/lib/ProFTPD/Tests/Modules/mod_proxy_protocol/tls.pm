@@ -75,6 +75,8 @@ sub proxy_protocol_tls_login_with_proxy {
     PidFile => $setup->{pid_file},
     ScoreboardFile => $setup->{scoreboard_file},
     SystemLog => $setup->{log_file},
+    TraceLog => $setup->{log_file},
+    Trace => 'netio:10 proxy_protocol:20',
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
@@ -121,8 +123,8 @@ sub proxy_protocol_tls_login_with_proxy {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port);
-      $client->send_proxy('1.1.1.1', '2.2.2.2', 111, 222);
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       my $ok = $client->command("AUTH", "TLS")->response();
       unless ($ok == CMD_OK || $ok == CMD_MORE) {
         die($client->message);
@@ -239,8 +241,8 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port);
-      $client->send_proxy_raw('1.1.1.1', '2.2.2.2', 111, 222);
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
 
       my $ssl_opts = {
         SSL_version => 'SSLv23',
