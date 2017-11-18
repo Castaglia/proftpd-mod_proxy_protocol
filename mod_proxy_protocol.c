@@ -1,6 +1,6 @@
 /*
  * ProFTPD - mod_proxy_protocol
- * Copyright (c) 2013-2014 TJ Saunders
+ * Copyright (c) 2013-2017 TJ Saunders
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -321,7 +321,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
   }
 
   if (have_tcp4 || have_tcp6) {
-    pr_netaddr_t *src_addr = NULL, *dst_addr = NULL;
+    const pr_netaddr_t *src_addr = NULL, *dst_addr = NULL;
     char *ptr2 = NULL;
     unsigned int src_port, dst_port;
     int flags = PR_NETADDR_GET_ADDR_FL_EXCL_DNS;
