@@ -1,4 +1,3 @@
-env: TRAVIS_CI=true
 language: c
 
 compiler:
@@ -21,11 +20,11 @@ before_script:
 script:
   # - find . -type f -name "*.c" -print | grep -v t\/ | xargs cppcheck 2>&1
   # - find . -type f -name "*.c" -print | grep -v t\/ | xargs rats --language=c
-  - git clone https://github.com/proftpd/proftpd.git
+  - git clone --depth 10 https://github.com/proftpd/proftpd.git
   - cp mod_proxy_protocol.c proftpd/contrib/
   - cd proftpd
-  - ./configure --enable-devel=coverage --enable-tests --with-module=mod_proxy_protocol
+  - ./configure LIBS="-lm -lrt -pthread" --enable-devel=coverage --enable-tests --with-module=mod_proxy_protocol
   - make
   - make clean
-  - ./configure --enable-devel=coverage --enable-dso --enable-tests --with-shared=mod_proxy_protocol
+  - ./configure LIBS="-lm -lrt -pthread" --enable-devel=coverage --enable-dso --enable-tests --with-shared=mod_proxy_protocol
   - make
