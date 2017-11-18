@@ -48,9 +48,10 @@ static const char *trace_channel = "proxy_protocol";
 
 static int poll_sock(int sockfd) {
   fd_set rfds;
-  int res;
+  int res = 0;
   struct timeval tv;
 
+  memset(&tv, 0, sizeof(tv));
   tv.tv_sec = proxy_protocol_timeout;
   tv.tv_usec = 0;
 
@@ -80,6 +81,7 @@ static int poll_sock(int sockfd) {
       return -1;
 
     } else if (res == 0) {
+      memset(&tv, 0, sizeof(tv));
       tv.tv_sec = proxy_protocol_timeout;
       tv.tv_usec = 0;
 
@@ -96,8 +98,8 @@ static int poll_sock(int sockfd) {
 }
 
 static int read_sock(int sockfd, void *buf, size_t reqlen) {
-  void *ptr;
-  size_t remainlen;
+  void *ptr = NULL;
+  size_t remainlen = 0;
 
   if (reqlen == 0) {
     return 0;
@@ -108,17 +110,17 @@ static int read_sock(int sockfd, void *buf, size_t reqlen) {
   remainlen = reqlen;
 
   while (remainlen > 0) {
-    int res;
+    int res, xerrno = 0;
 
     if (poll_sock(sockfd) < 0) {
       return -1;
     }
 
     res = read(sockfd, ptr, remainlen);
+    xerrno = errno;
+
     while (res <= 0) {
       if (res < 0) {
-        int xerrno = errno;
-
         if (xerrno == EINTR) {
           pr_signals_handle();
           continue;
@@ -302,6 +304,12 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
   if (have_nl == FALSE) {
     pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
       ": missing expected CRLF termination");
+    goto bad_proto;
+  }
+
+  if (buflen == 0) {
+    pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+      ": missing expected proxy data");
     goto bad_proto;
   }
 
