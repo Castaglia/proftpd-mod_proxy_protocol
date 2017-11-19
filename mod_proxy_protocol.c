@@ -26,7 +26,7 @@
 #include "conf.h"
 #include "privs.h"
 
-#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.0"
+#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.1"
 
 /* Make sure the version of proftpd is as necessary. */
 #if PROFTPD_VERSION_NUMBER < 0x0001030504
@@ -131,24 +131,22 @@ static int read_sock(int sockfd, void *buf, size_t reqlen) {
         pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
           ": error reading from client (fd %d): %s", sockfd, strerror(xerrno));
 
-        errno = xerrno;
-
         /* We explicitly disconnect the client here because the errors below
          * all indicate a problem with the TCP connection.
          */
-        if (errno == ECONNRESET ||
-            errno == ECONNABORTED ||
+        if (xerrno == ECONNRESET ||
+            xerrno == ECONNABORTED ||
 #ifdef ETIMEDOUT
-            errno == ETIMEDOUT ||
+            xerrno == ETIMEDOUT ||
 #endif /* ETIMEDOUT */
 #ifdef ENOTCONN
-            errno == ENOTCONN ||
+            xerrno == ENOTCONN ||
 #endif /* ENOTCONN */
 #ifdef ESHUTDOWN
-            errno == ESHUTDOWN ||
+            xerrno == ESHUTDOWN ||
 #endif /* ESHUTDOWNN */
-            errno == EPIPE) {
-          xerrno = errno;
+            xerrno == EPIPE) {
+          errno = xerrno;
 
           pr_trace_msg(trace_channel, 16,
             "disconnecting client (%s)", strerror(xerrno));
@@ -192,6 +190,81 @@ static int read_sock(int sockfd, void *buf, size_t reqlen) {
   return reqlen;
 }
 
+static int readv_sock(int sockfd, const struct iovec *iov, int count) {
+  int res, xerrno = 0;
+
+  if (poll_sock(sockfd) < 0) {
+    return -1;
+  }
+
+  res = readv(sockfd, iov, count);
+  xerrno = errno;
+
+  while (res <= 0) {
+    if (res < 0) {
+      if (xerrno == EINTR) {
+        pr_signals_handle();
+
+        if (poll_sock(sockfd) < 0) {
+          return -1;
+        }
+
+        res = readv(sockfd, iov, count);
+        xerrno = errno;
+        continue;
+      }
+
+      pr_trace_msg(trace_channel, 16,
+        "error reading from client (fd %d): %s", sockfd, strerror(xerrno));
+      pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
+        ": error reading from client (fd %d): %s", sockfd, strerror(xerrno));
+
+      /* We explicitly disconnect the client here because the errors below
+       * all indicate a problem with the TCP connection.
+       */
+      if (xerrno == ECONNRESET ||
+          xerrno == ECONNABORTED ||
+#ifdef ETIMEDOUT
+          xerrno == ETIMEDOUT ||
+#endif /* ETIMEDOUT */
+#ifdef ENOTCONN
+          xerrno == ENOTCONN ||
+#endif /* ENOTCONN */
+#ifdef ESHUTDOWN
+          xerrno == ESHUTDOWN ||
+#endif /* ESHUTDOWNN */
+          xerrno == EPIPE) {
+
+        pr_trace_msg(trace_channel, 16,
+          "disconnecting client (%s)", strerror(xerrno));
+        pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+          ": disconnecting client (%s)", strerror(xerrno));
+        pr_session_disconnect(&proxy_protocol_module,
+          PR_SESS_DISCONNECT_CLIENT_EOF, strerror(xerrno));
+
+        return -1;
+      }
+
+      /* If we read zero bytes here, treat it as an EOF and hang up on
+       * the uncommunicative client.
+       */
+
+      pr_trace_msg(trace_channel, 16, "%s",
+        "disconnecting client (received EOF)");
+      pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+        ": disconnecting client (received EOF)");
+      pr_session_disconnect(&proxy_protocol_module,
+        PR_SESS_DISCONNECT_CLIENT_EOF, NULL);
+
+      errno = ENOENT;
+      return -1;
+    }
+  }
+
+  session.total_raw_in += res;
+  return res;
+}
+
 static unsigned int strtou(const char **str, const char *last) {
   const char *ptr = *str;
   unsigned int i = 0, j, k;
@@ -227,8 +300,8 @@ static unsigned int strtou(const char **str, const char *last) {
  *  - SRC4:  layer 4 (e.g. TCP port) source address in standard text form
  *  - DST4:  layer 4 (e.g. TCP port) destination address in standard text form
  */
-static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
-    unsigned int *proxied_port) {
+static int read_haproxy_v1(pool *p, conn_t *conn,
+    const pr_netaddr_t **proxied_addr, unsigned int *proxied_port) {
   register unsigned int i;
   char buf[PROXY_PROTOCOL_BUFSZ], *last = NULL, *ptr = NULL;
   int have_cr = FALSE, have_nl = FALSE, have_tcp4 = FALSE, have_tcp6 = FALSE;
@@ -309,7 +382,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
 
   if (buflen == 0) {
     pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
-      ": missing expected proxy data");
+      ": missing expected PROXY protocol data");
     goto bad_proto;
   }
 
@@ -509,12 +582,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn, pr_netaddr_t **proxied_addr,
     }
 
     /* Set the source port for the source address. */
-    pr_netaddr_set_port(src_addr, htons(src_port));
-
-    /* TODO: Check the destination address against our remote address.
-     * If they do not match, then it suggests that the proxy is multi-homed,
-     * which might be useful information.
-     */
+    pr_netaddr_set_port((pr_netaddr_t *) src_addr, htons(src_port));
 
     *proxied_addr = src_addr;
     *proxied_port = src_port;
@@ -542,9 +610,311 @@ bad_proto:
   return -1;
 }
 
+static const char haproxy_v2_sig[12] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
+
+static int read_haproxy_v2(pool *p, conn_t *conn,
+    const pr_netaddr_t **proxied_addr, unsigned int *proxied_port) {
+  int res = 0;
+  uint8_t v2_sig[12], ver_cmd, trans_fam;
+  uint16_t v2_len;
+  struct iovec v2_hdr[4];
+  const pr_netaddr_t *src_addr = NULL, *dst_addr = NULL;
+
+  v2_hdr[0].iov_base = (void *) v2_sig;
+  v2_hdr[0].iov_len = sizeof(v2_sig);
+  v2_hdr[1].iov_base = (void *) &ver_cmd;
+  v2_hdr[1].iov_len = sizeof(ver_cmd);
+  v2_hdr[2].iov_base = (void *) &trans_fam;
+  v2_hdr[2].iov_len = sizeof(trans_fam);
+  v2_hdr[3].iov_base = (void *) &v2_len;
+  v2_hdr[3].iov_len = sizeof(v2_len);
+
+  res = readv_sock(conn->rfd, v2_hdr, 4);
+  if (res < 0) {
+    return -1;
+  }
+
+  if (res != 16) {
+    pr_trace_msg(trace_channel, 20, "read %lu V2 bytes, expected %lu bytes",
+      (unsigned long) res, (unsigned long) 16);
+    errno = EPERM;
+    return -1;
+  }
+
+  /* Validate the obtained data. */
+  if (memcmp(v2_sig, haproxy_v2_sig, sizeof(haproxy_v2_sig)) != 0) {
+    pr_trace_msg(trace_channel, 3,
+      "invalid proxy protocol V2 signature, rejecting");
+    errno = EINVAL;
+    return -1;
+  }
+
+  if ((ver_cmd & 0xF0) != 0x20) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  switch (ver_cmd & 0xF) {
+    /* PROXY command */
+    case 0x01:
+      switch (trans_fam) {
+        /* TCP, IPv4 */
+        case 0x11: {
+          uint32_t src_ipv4, dst_ipv4;
+          uint16_t src_port, dst_port;
+          struct iovec ipv4[4];
+          struct sockaddr_in *saddr;
+
+          pr_trace_msg(trace_channel, 17,
+            "received proxy protocol V2 TCP/IPv4 transport family (%lu bytes)",
+            (unsigned long) ntohs(v2_len));
+
+          if (ntohs(v2_len) != 12) {
+            pr_trace_msg(trace_channel, 3,
+              "proxy protocol V2 TCP/IPv4 transport family sent %lu bytes, "
+              "expected %lu bytes", (unsigned long) ntohs(v2_len),
+              (unsigned long) 12);
+            errno = EINVAL;
+            return -1;
+          }
+
+          ipv4[0].iov_base = (void *) &src_ipv4;
+          ipv4[0].iov_len = sizeof(src_ipv4);
+          ipv4[1].iov_base = (void *) &dst_ipv4;
+          ipv4[1].iov_len = sizeof(dst_ipv4);
+          ipv4[2].iov_base = (void *) &src_port;
+          ipv4[2].iov_len = sizeof(src_port);
+          ipv4[3].iov_base = (void *) &dst_port;
+          ipv4[3].iov_len = sizeof(dst_port);
+
+          res = readv_sock(conn->rfd, ipv4, 4);
+          if (res < 0) {
+            return -1;
+          }
+
+          src_addr = pr_netaddr_alloc(p);
+          pr_netaddr_set_family((pr_netaddr_t *) src_addr, AF_INET);
+          saddr = (struct sockaddr_in *) pr_netaddr_get_sockaddr(src_addr);
+          saddr->sin_family = AF_INET;
+          saddr->sin_addr.s_addr = src_ipv4;
+          saddr->sin_port = src_port;
+          pr_netaddr_set_port((pr_netaddr_t *) src_addr, src_port);
+
+          dst_addr = pr_netaddr_alloc(p);
+          pr_netaddr_set_family((pr_netaddr_t *) dst_addr, AF_INET);
+          saddr = (struct sockaddr_in *) pr_netaddr_get_sockaddr(dst_addr);
+          saddr->sin_family = AF_INET;
+          saddr->sin_addr.s_addr = dst_ipv4;
+          saddr->sin_port = dst_port;
+          pr_netaddr_set_port((pr_netaddr_t *) dst_addr, dst_port);
+
+          pr_trace_msg(trace_channel, 17,
+            "received proxy protocol V2 TCP/IPv4 transport family: "
+            "source address %s#%d, destination address %s#%d",
+            pr_netaddr_get_ipstr(src_addr),
+            ntohs(pr_netaddr_get_port(src_addr)),
+            pr_netaddr_get_ipstr(dst_addr),
+            ntohs(pr_netaddr_get_port(dst_addr)));
+
+          break;
+        }
+
+        /* TCP, IPv6 */
+        case 0x21: {
+          uint8_t src_ipv6[16], dst_ipv6[16];
+          uint16_t src_port, dst_port;
+          struct iovec ipv6[4];
+          struct sockaddr_in6 *saddr;
+
+          pr_trace_msg(trace_channel, 17,
+            "received proxy protocol V2 TCP/IPv6 transport family (%lu bytes)",
+            (unsigned long) ntohs(v2_len));
+
+          if (ntohs(v2_len) != 36) {
+            pr_trace_msg(trace_channel, 3,
+              "proxy protocol V2 TCP/IPv6 transport family sent %lu bytes, "
+              "expected %lu bytes", (unsigned long) ntohs(v2_len),
+              (unsigned long) 36);
+            errno = EINVAL;
+            return -1;
+          }
+
+#ifdef PR_USE_IPV6
+          ipv6[0].iov_base = (void *) &src_ipv6;
+          ipv6[0].iov_len = sizeof(src_ipv6);
+          ipv6[1].iov_base = (void *) &dst_ipv6;
+          ipv6[1].iov_len = sizeof(dst_ipv6);
+          ipv6[2].iov_base = (void *) &src_port;
+          ipv6[2].iov_len = sizeof(src_port);
+          ipv6[3].iov_base = (void *) &dst_port;
+          ipv6[3].iov_len = sizeof(dst_port);
+
+          res = readv_sock(conn->rfd, ipv6, 4);
+          if (res < 0) {
+            return -1;
+          }
+
+          src_addr = pr_netaddr_alloc(p);
+          pr_netaddr_set_family((pr_netaddr_t *) src_addr, AF_INET6);
+          saddr = (struct sockaddr_in6 *) pr_netaddr_get_sockaddr(src_addr);
+          saddr->sin6_family = AF_INET6;
+          memcpy(&(saddr->sin6_addr), src_ipv6, sizeof(src_ipv6));
+          saddr->sin6_port = src_port;
+          pr_netaddr_set_port((pr_netaddr_t *) src_addr, src_port);
+
+          dst_addr = pr_netaddr_alloc(p);
+          pr_netaddr_set_family((pr_netaddr_t *) dst_addr, AF_INET6);
+          saddr = (struct sockaddr_in6 *) pr_netaddr_get_sockaddr(dst_addr);
+          saddr->sin6_family = AF_INET6;
+          memcpy(&(saddr->sin6_addr), dst_ipv6, sizeof(dst_ipv6));
+          saddr->sin6_port = dst_port;
+          pr_netaddr_set_port((pr_netaddr_t *) dst_addr, dst_port);
+
+          /* Handle IPv4-mapped IPv6 addresses as IPv4 addresses. */
+          if (pr_netaddr_is_v4mappedv6(src_addr) == TRUE) {
+            src_addr = pr_netaddr_v6tov4(p, src_addr);
+          }
+
+          if (pr_netaddr_is_v4mappedv6(dst_addr) == TRUE) {
+            dst_addr = pr_netaddr_v6tov4(p, dst_addr);
+          }
+
+          pr_trace_msg(trace_channel, 17,
+            "received proxy protocol V2 TCP/IPv6 transport family: "
+            "source address %s#%d, destination address %s#%d",
+            pr_netaddr_get_ipstr(src_addr),
+            ntohs(pr_netaddr_get_port(src_addr)),
+            pr_netaddr_get_ipstr(dst_addr),
+            ntohs(pr_netaddr_get_port(dst_addr)));
+#else
+          /* Avoid compiler warnings about unused variables. */
+          (void) src_ipv6;
+          (void) dst_ipv6;
+          (void) src_port;
+          (void) dst_port;
+          (void) ipv6;
+          (void) saddr;
+
+          pr_trace_msg(trace_channel, 3,
+            "IPv6 support disabled, ignoring proxy protocol V2 data");
+#endif /* PR_USE_IPV6 */
+          break;
+        }
+
+        /* Unix */
+        case 0x31: {
+          unsigned char src_path[108];
+          unsigned char dst_path[108];
+
+          pr_trace_msg(trace_channel, 17,
+            "received proxy protocol V2 Unix transport family "
+            "(%lu bytes), ignoring", (unsigned long) ntohs(v2_len));
+
+          if (ntohs(v2_len) != 216) {
+            pr_trace_msg(trace_channel, 3,
+              "proxy protocol V2 Unix transport family sent %lu bytes, "
+              "expected %lu bytes", (unsigned long) ntohs(v2_len),
+              (unsigned long) 216);
+            errno = EINVAL;
+            return -1;
+          }
+
+          res = read_sock(conn->rfd, src_path, sizeof(src_path));
+          if (res > 0) {
+            pr_trace_msg(trace_channel, 15,
+              "received proxy protocol V2 Unix source path: '%s'", src_path);
+          }
+
+          res = read_sock(conn->rfd, dst_path, sizeof(dst_path));
+          if (res > 0) {
+            pr_trace_msg(trace_channel, 15,
+              "received proxy protocol V2 Unix destination path: '%s'",
+             dst_path);
+          }
+
+          break;
+        }
+
+        /* Unspecified */
+        case 0x00: {
+          pool *tmp_pool;
+          unsigned char *buf;
+          size_t buflen;
+
+          buflen = ntohs(v2_len);
+
+          pr_trace_msg(trace_channel, 17,
+            "received proxy protocol V2 unspecified transport family "
+            "(%lu bytes), ignoring", (unsigned long) buflen);
+
+          tmp_pool = make_sub_pool(p);
+          buf = palloc(tmp_pool, buflen);
+          (void) read_sock(conn->rfd, buf, buflen);
+          destroy_pool(tmp_pool);
+          break;
+        }
+
+        default:
+          pr_trace_msg(trace_channel, 3,
+            "unsupported proxy protocol V2 transport family: %u", trans_fam);
+          errno = EINVAL;
+          return -1;
+      }
+      break;
+
+    /* LOCAL command */
+    case 0x00:
+      /* Keep local connection address for LOCAL commands. */
+      pr_trace_msg(trace_channel, 17,
+        "received proxy protocol V2 LOCAL command, ignoring");
+      return 0;
+
+    default:
+      pr_trace_msg(trace_channel, 3,
+        "unsupported proxy protocol V2 command: %u", ver_cmd);
+      errno = EINVAL;
+      return -1;
+  }
+
+  if (src_addr == NULL &&
+      dst_addr == NULL) {
+    return 0;
+  }
+
+  if (ntohs(pr_netaddr_get_port(dst_addr)) > 65535) {
+    pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+      ": out-of-range destination port provided: %u",
+      ntohs(pr_netaddr_get_port(dst_addr)));
+    errno = EINVAL;
+    return -1;
+  }
+
+  /* Paranoidly check the given source address/port against the
+   * destination address/port.  If the two tuples match, then the remote
+   * client is lying to us (it's not possible to have a TCP connection
+   * FROM an address/port tuple which is identical to the destination
+   * address/port tuple).
+   */
+  if (pr_netaddr_cmp(src_addr, dst_addr) == 0 &&
+      pr_netaddr_get_port(src_addr) == pr_netaddr_get_port(dst_addr)) {
+    pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+      ": source/destination address/port are IDENTICAL: %s#%u",
+      pr_netaddr_get_ipstr(src_addr), ntohs(pr_netaddr_get_port(src_addr)));
+    errno = EPERM;
+    return -1;
+  }
+
+  *proxied_addr = src_addr;
+  *proxied_port = ntohs(pr_netaddr_get_port(src_addr));
+
+  return 0;
+}
+
 static int read_proxied_addr(pool *p, conn_t *conn,
-   pr_netaddr_t **proxied_addr, unsigned int *proxied_port) {
+   const pr_netaddr_t **proxied_addr, unsigned int *proxied_port) {
   int res;
+
+  /* Note that in theory, we could auto-detect the protocol version. */
 
   switch (proxy_protocol_version) {
     case PROXY_PROTOCOL_VERSION_HAPROXY_V1:
@@ -552,6 +922,9 @@ static int read_proxied_addr(pool *p, conn_t *conn,
       break;
 
     case PROXY_PROTOCOL_VERSION_HAPROXY_V2:
+      res = read_haproxy_v2(p, conn, proxied_addr, proxied_port);
+      break;
+
     default:
       errno = ENOSYS;
       res = -1;
@@ -626,6 +999,9 @@ MODRET set_proxyprotocolversion(cmd_rec *cmd) {
   if (strcasecmp(cmd->argv[1], "haproxyV1") == 0) {
     proto_version = PROXY_PROTOCOL_VERSION_HAPROXY_V1;
 
+  } else if (strcasecmp(cmd->argv[1], "haproxyV2") == 0) {
+    proto_version = PROXY_PROTOCOL_VERSION_HAPROXY_V2;
+
   } else {
     CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, "unknown protocol/version: ",
       cmd->argv[1], NULL));
@@ -644,7 +1020,7 @@ MODRET set_proxyprotocolversion(cmd_rec *cmd) {
 static int proxy_protocol_sess_init(void) {
   config_rec *c;
   int engine = 0, res = 0, timerno = -1, xerrno;
-  pr_netaddr_t *proxied_addr = NULL;
+  const pr_netaddr_t *proxied_addr = NULL;
   unsigned int proxied_port = 0;
   const char *remote_ip = NULL, *remote_name = NULL;
   pr_netio_t *tls_netio = NULL;
