@@ -26,6 +26,10 @@
 #include "conf.h"
 #include "privs.h"
 
+#ifdef HAVE_SYS_UIO_H
+# include <sys/uio.h>
+#endif /* HAVE_SYS_UIO_H */
+
 #define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.1"
 
 /* Make sure the version of proftpd is as necessary. */
