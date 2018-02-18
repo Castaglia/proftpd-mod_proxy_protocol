@@ -140,6 +140,27 @@ of <code>LoadModule</code> directives; the last of which would be:
   LoadModule mod_proxy_protocol.c
 </pre>
 
+<b>Note</b> that using <code>mod_proxy_protocol</code> as a shared module
+is <i>required</i> in cases where you want to use both
+<code>mod_proxy_protocol</code> <i>and</i> <code>mod_ifsession</code>.  For
+example, perhaps you want to use <code>mod_ifsession</code> to change the
+behavior of some module, <i>e.g.</i> <code>mod_ban</code>, based on the IP
+address of the original client.  This means that <code>mod_proxy_protocol</code>
+would need to hande the connection <i>first</i>, so that it can decode the
+<code>PROXY</code> protocol and set the correct client IP address.
+<i>However</i>, the ProFTPD build system is hardcoded to ensure that the
+<code>mod_ifsession</i> will always be first -- <i>if</i> using static modules.
+By using <i>shared</i> modules, you can enforce the proper ordering using the
+<code>LoadModule</code> directive, like so:
+<pre>
+  &lt;IfModule mod_dso.c&gt;
+    ...
+    LoadModule mod_ifsession.c
+    LoadModule mod_proxy_protocol.c
+  &lt;/IfModule&gt;
+</pre>
+The <i>last</i> module loaded will be the <i>first</i> module called.
+
 <p>
 <b>Trusting Senders of Proxy Data</b><br>
 Use of these proxy protocols means changes in audit trails and/or client
@@ -227,11 +248,10 @@ to your existing server:
 <p>
 <hr>
 <font size=2><b><i>
-&copy; Copyright 2013-2017 TJ Saunders<br>
+&copy; Copyright 2013-2018 TJ Saunders<br>
  All Rights Reserved<br>
 </i></b></font>
 
 <hr>
 </body>
 </html>
-
