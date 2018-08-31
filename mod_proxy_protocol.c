@@ -949,6 +949,42 @@ static int proxy_protocol_timeout_cb(CALLBACK_FRAME) {
   return 0;
 }
 
+static int check_ip_valid(const char *address) {
+  int len = strlen(address);
+
+  if ((len > 15) || (len < 7)) {
+    return -1;
+  }
+
+  int nNumCount = 0;
+  int nDotCount = 0;
+  int i = 0;
+
+  for (i = 0; i < len; i++) {
+      if (address[i] < '0' || address[i] > '9') {
+          if (address[i] == '.' && nNumCount > 0) {
+            ++nDotCount;
+            nNumCount = 0;
+          } else if (address[i] == '%' && nNumCount == 0) {
+            ++nNumCount;
+            continue;
+          } else {
+            return -1;
+          }
+      } else {
+        if (++nNumCount > 3) {
+          return -1;
+        }
+      }
+  }
+
+  if (nDotCount != 3) {
+    return -1;
+  }
+
+  return 1;
+}
+
 /* Configuration handlers
  */
 
@@ -1018,6 +1054,28 @@ MODRET set_proxyprotocolversion(cmd_rec *cmd) {
   return PR_HANDLED(cmd);
 }
 
+/* usage: 123.123.123.% is client ip who using proxy protocol  */
+MODRET set_proxyclientaddress(cmd_rec *cmd) {
+  const char *proxy_client_address = NULL;
+  config_rec *c = NULL;
+
+  CHECK_ARGS(cmd, 1);
+  CHECK_CONF(cmd, CONF_ROOT|CONF_VIRTUAL|CONF_GLOBAL);
+
+  proxy_client_address = cmd->argv[1];
+
+  if (check_ip_valid(proxy_client_address) < 0) {
+    CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, "invalid ip address",
+      cmd->argv[1], NULL));
+  }
+
+  c = add_config_param(cmd->argv[0], 1, NULL);
+  c->argv[0] = pcalloc(c->pool, sizeof(char) * strlen(proxy_client_address));
+  strcpy((const char *) c->argv[0], proxy_client_address);
+
+  return PR_HANDLED(cmd);
+}
+
 /* Initialization routines
  */
 
@@ -1026,7 +1084,7 @@ static int proxy_protocol_sess_init(void) {
   int engine = 0, res = 0, timerno = -1, xerrno;
   const pr_netaddr_t *proxied_addr = NULL;
   unsigned int proxied_port = 0;
-  const char *remote_ip = NULL, *remote_name = NULL;
+  const char *remote_ip = NULL, *remote_name = NULL, *use_proxy_ip = NULL;
   pr_netio_t *tls_netio = NULL;
 
   c = find_config(main_server->conf, CONF_PARAM, "ProxyProtocolEngine", FALSE);
@@ -1036,6 +1094,26 @@ static int proxy_protocol_sess_init(void) {
 
   if (engine == FALSE) {
     return 0;
+  }
+
+  c = find_config(main_server->conf, CONF_PARAM, "ProxyClientAddress", FALSE);
+  if (c != NULL) {
+    use_proxy_ip = (const char *) c->argv[0];
+
+    remote_ip = pstrdup(session.pool,
+      pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()));
+
+    int i;
+
+    for (i = 0; i < strlen(use_proxy_ip); i++) {
+      if (use_proxy_ip[i] != remote_ip[i]) {
+        if (use_proxy_ip[i] == '%') {
+          break;
+        }
+
+        return 0;
+      }
+    }
   }
 
   c = find_config(main_server->conf, CONF_PARAM, "ProxyProtocolTimeout", FALSE);
@@ -1147,9 +1225,10 @@ static int proxy_protocol_sess_init(void) {
  */
 
 static conftable proxy_protocol_conftab[] = {
-  { "ProxyProtocolEngine",	set_proxyprotocolengine,	NULL },
-  { "ProxyProtocolTimeout",	set_proxyprotocoltimeout,	NULL },
-  { "ProxyProtocolVersion",	set_proxyprotocolversion,	NULL },
+  { "ProxyProtocolEngine",  set_proxyprotocolengine,  NULL },
+  { "ProxyProtocolTimeout", set_proxyprotocoltimeout, NULL },
+  { "ProxyProtocolVersion", set_proxyprotocolversion, NULL },
+  { "ProxyClientAddress",   set_proxyclientaddress,   NULL },
 
   { NULL }
 };
@@ -1182,4 +1261,3 @@ module proxy_protocol_module = {
   /* Module version */
   MOD_PROXY_PROTOCOL_VERSION
 };
-
