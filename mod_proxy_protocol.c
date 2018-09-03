@@ -961,28 +961,48 @@ static int check_ip_valid(const char *address) {
   int i = 0;
 
   for (i = 0; i < len; i++) {
-      if (address[i] < '0' || address[i] > '9') {
-          if (address[i] == '.' && nNumCount > 0) {
-            ++nDotCount;
-            nNumCount = 0;
-          } else if (address[i] == '%' && nNumCount == 0) {
-            ++nNumCount;
-            continue;
-          } else {
-            return -1;
-          }
+    if (address[i] < '0' || address[i] > '9') {
+      if (address[i] == '.' && nNumCount > 0) {
+        ++nDotCount;
+        nNumCount = 0;
+      } else if (address[i] == '%' && nNumCount == 0) {
+        ++nNumCount;
+        continue;
       } else {
-        if (++nNumCount > 3) {
-          return -1;
-        }
+        return FALSE;
       }
+    } else {
+      if (++nNumCount > 3) {
+        return FALSE;
+      }
+    }
   }
 
   if (nDotCount != 3) {
-    return -1;
+    return FALSE;
   }
 
-  return 1;
+  return TRUE;
+}
+
+static int check_proxy_client(const char *pr_ip, const char *remote_ip) {
+  if (strcmp(pr_ip, remote_ip) == 0) {
+    return TRUE;
+  }
+
+  int i, len; 
+
+  len = strlen(pr_ip);
+  for (i = 0; i < len; i++) {
+    if (pr_ip[i] != remote_ip[i]) {
+      if (pr_ip[i] == '%') {
+        return TRUE;
+      }
+      return FALSE;
+    }
+  }
+
+  return FALSE;
 }
 
 /* Configuration handlers
@@ -1054,24 +1074,48 @@ MODRET set_proxyprotocolversion(cmd_rec *cmd) {
   return PR_HANDLED(cmd);
 }
 
-/* usage: 123.123.123.% is client ip who using proxy protocol  */
+/* usage: ProxyClientAddress x.y.zzz.ab 12.12.12.% 192.168.%.% */
 MODRET set_proxyclientaddress(cmd_rec *cmd) {
-  const char *proxy_client_address = NULL;
+  const char **client_ip = NULL;
   config_rec *c = NULL;
+  int *flag = NULL;
+  int valid_arg = 0, ptr = 0, i = 0;
 
-  CHECK_ARGS(cmd, 1);
+  int argnum = cmd->argc - 1;
+
+  flag = (int *)calloc(FALSE, sizeof(int) * argnum);
+  
+  CHECK_ARGS(cmd, argnum);
   CHECK_CONF(cmd, CONF_ROOT|CONF_VIRTUAL|CONF_GLOBAL);
 
-  proxy_client_address = cmd->argv[1];
+  client_ip = (const char **)malloc(sizeof(const char *) * argnum);
 
-  if (check_ip_valid(proxy_client_address) < 0) {
-    CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, "invalid ip address",
-      cmd->argv[1], NULL));
+  for (i = 0; i < argnum; i++) {
+    client_ip[i] = cmd->argv[i + 1];
+
+    if (check_ip_valid(client_ip) == FALSE) {
+      CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, "invalid ip address",
+        cmd->argv[i + 1], NULL));
+      flag[i] = FALSE;
+    } else {
+      ++valid_arg;
+      flag[i] = TRUE;
+    }
+  }
+  
+  c = add_config_param(cmd->argv[0], valid_arg + 1, NULL);
+  c->argv[0] = pcalloc(c->pool, sizeof(int));
+  *((int *) c->argv[0]) = valid_arg;
+
+  for (i = 0; i < argnum; i++) {
+    if (flag[i] == TRUE) {
+      c->argv[++ptr] = pcalloc(c->pool, sizeof(char) * strlen(client_ip[i]));
+      strcpy((const char *) c->argv[ptr], client_ip[i]);
+    }
   }
 
-  c = add_config_param(cmd->argv[0], 1, NULL);
-  c->argv[0] = pcalloc(c->pool, sizeof(char) * strlen(proxy_client_address));
-  strcpy((const char *) c->argv[0], proxy_client_address);
+  free(flag);
+  free(client_ip);
 
   return PR_HANDLED(cmd);
 }
@@ -1084,7 +1128,7 @@ static int proxy_protocol_sess_init(void) {
   int engine = 0, res = 0, timerno = -1, xerrno;
   const pr_netaddr_t *proxied_addr = NULL;
   unsigned int proxied_port = 0;
-  const char *remote_ip = NULL, *remote_name = NULL, *use_proxy_ip = NULL;
+  const char *remote_ip = NULL, *remote_name = NULL;
   pr_netio_t *tls_netio = NULL;
 
   c = find_config(main_server->conf, CONF_PARAM, "ProxyProtocolEngine", FALSE);
@@ -1098,19 +1142,16 @@ static int proxy_protocol_sess_init(void) {
 
   c = find_config(main_server->conf, CONF_PARAM, "ProxyClientAddress", FALSE);
   if (c != NULL) {
-    use_proxy_ip = (const char *) c->argv[0];
+    int i; 
+    int pr_num = *((int *) c->argv[0]);
 
     remote_ip = pstrdup(session.pool,
       pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()));
 
-    int i;
-
-    for (i = 0; i < strlen(use_proxy_ip); i++) {
-      if (use_proxy_ip[i] != remote_ip[i]) {
-        if (use_proxy_ip[i] == '%') {
-          break;
-        }
-
+    for (i = 1; i <= pr_num; i++) {
+      if (check_proxy_client((const char *) c->argv[i], remote_ip) == TRUE) {
+        break;
+      } else if (i == pr_num) {
         return 0;
       }
     }
@@ -1225,10 +1266,10 @@ static int proxy_protocol_sess_init(void) {
  */
 
 static conftable proxy_protocol_conftab[] = {
-  { "ProxyProtocolEngine",  set_proxyprotocolengine,  NULL },
-  { "ProxyProtocolTimeout", set_proxyprotocoltimeout, NULL },
-  { "ProxyProtocolVersion", set_proxyprotocolversion, NULL },
-  { "ProxyClientAddress",   set_proxyclientaddress,   NULL },
+  { "ProxyProtocolEngine",	set_proxyprotocolengine,	NULL },
+  { "ProxyProtocolTimeout",	set_proxyprotocoltimeout,	NULL },
+  { "ProxyProtocolVersion",	set_proxyprotocolversion,	NULL },
+  { "ProxyClientAddress",	set_proxyclientaddress,	NULL },
 
   { NULL }
 };
