@@ -1024,16 +1024,16 @@ char *check_ip_valid(char *address) {
   int i = 0;
 
   for (i = 0; i < len; i++) {
-      if (ip[i] < '0' || ip[i] > '9') {
-          if (ip[i] == '.' && nNumCount > 0) {
+    if (ip[i] < '0' || ip[i] > '9') {
+      if (ip[i] == '.' && nNumCount > 0) {
         ++nDotCount;
         nNumCount = 0;
       } else {
-              return NULL;
+        return NULL;
       }
     } else {
       if (++nNumCount > 3) {
-            return NULL;
+        return NULL;
       }
     }
   }
@@ -1058,8 +1058,8 @@ static int check_proxy_client(char *conf_addr, char *remote_ip) {
   unsigned int remoteIpMasking = ipToui(remote_ip) & maskAsUInt;
 
   if (confIpMasking == remoteIpMasking) {
-        return TRUE;
-      }
+    return TRUE;
+  }
 
   return FALSE;
 }
