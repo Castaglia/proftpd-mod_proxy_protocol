@@ -1269,7 +1269,7 @@ static conftable proxy_protocol_conftab[] = {
   { "ProxyProtocolEngine",	set_proxyprotocolengine,	NULL },
   { "ProxyProtocolTimeout",	set_proxyprotocoltimeout,	NULL },
   { "ProxyProtocolVersion",	set_proxyprotocolversion,	NULL },
-  { "ProxyClientAddress",	set_proxyclientaddress,	NULL },
+  { "ProxyClientAddress",      set_proxyclientaddress,         NULL },
 
   { NULL }
 };
