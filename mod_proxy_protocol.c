@@ -48,9 +48,12 @@ static int proxy_protocol_timeout = PROXY_PROTOCOL_TIMEOUT_DEFAULT;
 #define PROXY_PROTOCOL_VERSION_HAPROXY_V2	2
 static unsigned int proxy_protocol_version = PROXY_PROTOCOL_VERSION_HAPROXY_V1;
 
-#define IP_CIDR_LENGTH 20
-
 static const char *trace_channel = "proxy_protocol";
+
+struct proxyips {
+  unsigned int ipUInt;
+  unsigned int maskUInt;
+};
 
 static int poll_sock(int sockfd) {
   fd_set rfds;
@@ -951,58 +954,13 @@ static int proxy_protocol_timeout_cb(CALLBACK_FRAME) {
   return 0;
 }
 
-unsigned int pow(unsigned int base, unsigned int exp) {
-  unsigned int res = 1;
-  int i;
-
-  for (i = 0; i < exp; i++) {
-    res *= base;
-  }
-
-  return res;
-}
-
-unsigned int createCIDRmask(const char *mask) {
-	unsigned int times = (unsigned int)atol(mask) - 1, maskAsUInt = 1;
-  
-  int i;
-	for (i = 0; i < times; ++i) {
-		maskAsUInt <<= 1;
-		maskAsUInt |= 1;
-	}
-
-	for (i = 0; i < (32 - times - 1); ++i) {
-		maskAsUInt <<= 1;
-  }
-  
-	return maskAsUInt;
-}
-
-unsigned int ipToui(char *ip) {
-	long ipAsUInt = 0;
-	
-	char *cPtr = strtok(ip, ".");
-	if(cPtr) {
-    ipAsUInt += atoi(cPtr) * pow(256, 3);
-  }
-
-	int exponent = 2;
-	while(cPtr && exponent >= 0) {
-		cPtr = strtok(NULL, ".\0");
-		if(cPtr) {
-      ipAsUInt += atoi(cPtr) * pow(256, exponent--);
-    }
-	}
-
-	return ipAsUInt;
-}
-
-char *check_ip_valid(char *address) {
+int check_ip_valid(char *address, struct proxyips *config) {
+  int maskbit;
   char *ip, *mask;
 
   ip = strtok(address, "/");
   if (ip == NULL) {
-    return NULL;
+    return FALSE;
   }
   
   mask = strtok(NULL, "\0");
@@ -1010,54 +968,32 @@ char *check_ip_valid(char *address) {
     mask = "32";
   }
 
-  int len = strlen(ip);
-  if ((len > 15) || (len < 7)) {
-    return NULL;
+  if (inet_pton(AF_INET, ip, &config->ipUInt) != 1) {
+    return FALSE;
   }
 
-  if ((atol(mask) > 32) || (atol(mask) < 1)) {
-    return NULL;
-  }
-
-  int nNumCount = 0;
-  int nDotCount = 0;
-  int i = 0;
-
-  for (i = 0; i < len; i++) {
-    if (ip[i] < '0' || ip[i] > '9') {
-      if (ip[i] == '.' && nNumCount > 0) {
-        ++nDotCount;
-        nNumCount = 0;
-      } else {
-        return NULL;
-      }
+  maskbit = atoi(mask);
+  if (maskbit < 0 || maskbit > 32) {
+    return FALSE;
+  } else {
+    if (maskbit == 0) {
+      config->maskUInt = 0;
     } else {
-      if (++nNumCount > 3) {
-        return NULL;
-      }
+      config->maskUInt = htonl(0xFFFFFFFFU << (32 - maskbit));
     }
-  }
+  }  
 
-  if (nDotCount != 3) {
-    return NULL;
-  }
-
-  strcat(ip, "/");
-  strcat(ip, mask);
-
-  return ip;
+  return TRUE;
 }
 
-static int check_proxy_client(char *conf_addr, char *remote_ip) {
-  char *conf_ip, *mask;
-  conf_ip = strtok(conf_addr, "/");
-  mask = strtok(NULL, "\0");
+static int check_proxy_client(struct proxyips *config, const char *remote_ip) {
+  unsigned int remoteIPUInt;
 
-  unsigned int maskAsUInt = createCIDRmask(mask);
-  unsigned int confIpMasking = ipToui(conf_ip) & maskAsUInt;
-  unsigned int remoteIpMasking = ipToui(remote_ip) & maskAsUInt;
+  if (inet_pton(AF_INET, remote_ip, &remoteIPUInt) != 1) {
+    return FALSE;
+  }
 
-  if (confIpMasking == remoteIpMasking) {
+  if ((config->ipUInt & config->maskUInt) == (remoteIPUInt & config->maskUInt)) {
     return TRUE;
   }
 
@@ -1135,40 +1071,29 @@ MODRET set_proxyprotocolversion(cmd_rec *cmd) {
 
 /* usage: ProxyClientAddress 1.2.345.67/24 12.12.12.1/30 10.0.0.2 192.168.0.1/32 */
 MODRET set_proxyclientaddress(cmd_rec *cmd) {
-  char **conf_ip = NULL;
+  char *conf_ip = NULL;
   config_rec *c = NULL;
   int valid_arg = 0, ptr = 0, i = 0;
   int argnum = cmd->argc - 1;
-
+  
   CHECK_ARGS(cmd, argnum);
   CHECK_CONF(cmd, CONF_ROOT|CONF_VIRTUAL|CONF_GLOBAL);
-
-  conf_ip = (char **)malloc(sizeof(char *) * argnum);
-
-  for (i = 0; i < argnum; i++) {
-    conf_ip[i] = (char *)malloc(sizeof(char) * IP_CIDR_LENGTH);
-    strcpy(conf_ip[i], (char *) cmd->argv[i + 1]);
-
-    conf_ip[i] = check_ip_valid(conf_ip[i]);
-    if (conf_ip[i] == NULL) {
-      CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, "invalid ip address",
-        cmd->argv[i + 1], NULL));
-    } else {
-      ++valid_arg;
-    }
-  }
   
-  c = add_config_param(cmd->argv[0], valid_arg + 1, NULL);
+  c = add_config_param(cmd->argv[0], argnum + 1, NULL);
   c->argv[0] = pcalloc(c->pool, sizeof(int));
-  *((int *) c->argv[0]) = valid_arg;
+  *((int *) c->argv[0]) = argnum;
+
+  conf_ip = (char *)malloc(sizeof(char) * 20);
 
   for (i = 0; i < argnum; i++) {
-    if (conf_ip[i] != NULL) {
-      c->argv[++ptr] = pcalloc(c->pool, sizeof(char) * IP_CIDR_LENGTH);
-      strcpy((char *) c->argv[ptr], conf_ip[i]);
-    }
+    strcpy(conf_ip, (char *) cmd->argv[i + 1]);
+    c->argv[i + 1] = pcalloc(c->pool, sizeof(struct proxyips));
 
-    free(conf_ip[i]);
+    if (check_ip_valid(conf_ip, ((struct proxyips *)(c->argv[i + 1]))) == FALSE) {
+      CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, "invalid ip address: ",
+        cmd->argv[i + 1], NULL));
+      break;
+    }
   }
 
   free(conf_ip);
@@ -1200,16 +1125,12 @@ static int proxy_protocol_sess_init(void) {
   if (c != NULL) {
     int i; 
     int confc = *((int *) c->argv[0]);
-    char conf_ip[IP_CIDR_LENGTH], client_ip[IP_CIDR_LENGTH];
 
     remote_ip = pstrdup(session.pool,
       pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()));
 
     for (i = 1; i <= confc; i++) {
-      strcpy(conf_ip, (char *) c->argv[i]);
-      strcpy(client_ip, remote_ip);
-
-      if (check_proxy_client(conf_ip, client_ip) == TRUE) {
+      if (check_proxy_client((struct proxyips *) c->argv[i], remote_ip) == TRUE) {
         break;
       } else if (i == confc) {
         return 0;
