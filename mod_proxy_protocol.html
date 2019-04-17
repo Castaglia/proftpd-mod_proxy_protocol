@@ -149,9 +149,9 @@ address of the original client.  This means that <code>mod_proxy_protocol</code>
 would need to hande the connection <i>first</i>, so that it can decode the
 <code>PROXY</code> protocol and set the correct client IP address.
 <i>However</i>, the ProFTPD build system is hardcoded to ensure that the
-<code>mod_ifsession</i> will always be first -- <i>if</i> using static modules.
-By using <i>shared</i> modules, you can enforce the proper ordering using the
-<code>LoadModule</code> directive, like so:
+<code>mod_ifsession</code> will always be first -- <i>if</i> using static
+modules.  By using <i>shared</i> modules, you can enforce the proper ordering
+using the <code>LoadModule</code> directive, like so:
 <pre>
   &lt;IfModule mod_dso.c&gt;
     ...
@@ -248,7 +248,7 @@ to your existing server:
 <p>
 <hr>
 <font size=2><b><i>
-&copy; Copyright 2013-2018 TJ Saunders<br>
+&copy; Copyright 2013-2019 TJ Saunders<br>
  All Rights Reserved<br>
 </i></b></font>
 
