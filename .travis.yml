@@ -7,8 +7,10 @@ compiler:
 install:
   # for unit tests
   - sudo apt-get install -y check
+  - sudo apt-get install -y libsubunit-dev
   # for static code analysis
-  - sudo apt-get install -y cppcheck rats
+  # - sudo apt-get install -y cppcheck
+  # - sudo apt-get install -y rats
   # for test code coverage
   - sudo apt-get install -y lcov
   - gem install coveralls-lcov
@@ -23,8 +25,8 @@ script:
   - git clone --depth 10 https://github.com/proftpd/proftpd.git
   - cp mod_proxy_protocol.c proftpd/contrib/
   - cd proftpd
-  - ./configure LIBS="-lm -lrt -pthread" --enable-devel=coverage --enable-tests --with-module=mod_proxy_protocol
+  - ./configure LIBS="-lm -lsubunit -lrt -pthread" --enable-devel=coverage --enable-tests --with-module=mod_proxy_protocol
   - make
   - make clean
-  - ./configure LIBS="-lm -lrt -pthread" --enable-devel=coverage --enable-dso --enable-tests --with-shared=mod_proxy_protocol
+  - ./configure LIBS="-lm -lsubunit -lrt -pthread" --enable-devel=coverage --enable-dso --enable-tests --with-shared=mod_proxy_protocol
   - make
