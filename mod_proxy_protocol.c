@@ -1,6 +1,6 @@
 /*
  * ProFTPD - mod_proxy_protocol
- * Copyright (c) 2013-2017 TJ Saunders
+ * Copyright (c) 2013-2020 TJ Saunders
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 # include <sys/uio.h>
 #endif /* HAVE_SYS_UIO_H */
 
-#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.1"
+#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.2"
 
 /* Make sure the version of proftpd is as necessary. */
 #if PROFTPD_VERSION_NUMBER < 0x0001030504
