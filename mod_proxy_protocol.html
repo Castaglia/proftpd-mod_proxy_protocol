@@ -182,19 +182,22 @@ If you need to <i>selectively</i> support the <code>PROXY</code> protocol
 from some IPs, but not others, then you can use <a href="http://www.proftpd.org/docs/howto/Classes.html">classes</a>, and the <a href="http://www.proftpd.org/docs/contrib/mod_ifsession.html"><code>mod_ifsession</code></a> module, like
 this:
 <pre>
-&lt;Class expect-proxy-protocol&gt;
-  From 192.168.18.33/24
-  From 192.168.33.2
-  From 10.0.0.0/8
-&lt;/Class&gt;
+  &lt;Class expect-proxy-protocol&gt;
+    From 192.168.18.33/24
+    From 192.168.33.2
+    From 10.0.0.0/8
+  &lt;/Class&gt;
 
-&lt;IfClass expect-proxy-protocol&gt;
-  &lt;IfModule mod_proxy_protocol.c&gt;
-    # Enable PROXY protocol supporrt for clients in this class
-    ProxyProtocolEngine on
-  &lt;/IfModule&gt;
-&lt;/IfClass&gt;
+  &lt;IfClass expect-proxy-protocol&gt;
+    &lt;IfModule mod_proxy_protocol.c&gt;
+      # Enable PROXY protocol supporrt for clients in this class
+      ProxyProtocolEngine on
+    &lt;/IfModule&gt;
+  &lt;/IfClass&gt;
 </pre>
+Note that per-user or per-group enabling of the <code>PROXY</code> protocol
+<b>cannot</b> be done; we only <i>know</i> the user/group of the connection
+<i>after</i> the <code>PROXY</code> protocol has been used.
 
 <p>
 <b>Why <code>AllowForeignAddress</code> Is Needed</b><br>
