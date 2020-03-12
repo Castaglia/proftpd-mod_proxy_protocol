@@ -178,6 +178,25 @@ make it look like the connection is coming from someone else.  <b>Only accept
 proxy information from trusted sources.</b>
 
 <p>
+If you need to <i>selectively</i> support the <code>PROXY</code> protocol
+from some IPs, but not others, then you can use <a href="http://www.proftpd.org/docs/howto/Classes.html">classes</a>, and the <a href="http://www.proftpd.org/docs/contrib/mod_ifsession.html"><code>mod_ifsession</code></a> module, like
+this:
+<pre>
+&lt;Class expect-proxy-protocol&gt;
+  From 192.168.18.33/24
+  From 192.168.33.2
+  From 10.0.0.0/8
+&lt;/Class&gt;
+
+&lt;IfClass expect-proxy-protocol&gt;
+  &lt;IfModule mod_proxy_protocol.c&gt;
+    # Enable PROXY protocol supporrt for clients in this class
+    ProxyProtocolEngine on
+  &lt;/IfModule&gt;
+&lt;/IfClass&gt;
+</pre>
+
+<p>
 <b>Why <code>AllowForeignAddress</code> Is Needed</b><br>
 One of the consequences of allowing <code>mod_proxy_protocol</code> to change
 the remote IP address is that security checks performed on data transfers
@@ -248,7 +267,7 @@ to your existing server:
 <p>
 <hr>
 <font size=2><b><i>
-&copy; Copyright 2013-2019 TJ Saunders<br>
+&copy; Copyright 2013-2020 TJ Saunders<br>
  All Rights Reserved<br>
 </i></b></font>
 
