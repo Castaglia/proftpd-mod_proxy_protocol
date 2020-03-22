@@ -181,7 +181,7 @@ static int read_sock(int sockfd, void *buf, size_t reqlen) {
 
     session.total_raw_in += reqlen;
 
-    if (res == remainlen) {
+    if ((size_t) res == remainlen) {
       break;
     }
 
@@ -616,6 +616,220 @@ bad_proto:
 
 static const char haproxy_v2_sig[12] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
 
+/* The TLS TLV is convoluted enough to warrant its own special function. */
+static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
+  uint8_t client;
+  uint32_t verify;
+  unsigned char *ptr;
+  size_t len;
+
+  ptr = tlv_val;
+  len = tlv_valsz;
+
+  memcpy(&client, ptr, sizeof(client));
+  ptr += sizeof(client);
+  len -= sizeof(client);
+
+  memcpy(&verify, ptr, sizeof(verify));
+  ptr += sizeof(verify);
+  len -= sizeof(verify);
+
+  if (client > 0) {
+    /* CLIENT_CERT_CONN */
+    if (client & 0x02) {
+      pr_trace_msg(trace_channel, 19,
+        "TLS TLV: client provided certificate over current connection");
+
+    /* CLIENT_CERT_SESS */
+    } else if (client & 0x04) {
+      pr_trace_msg(trace_channel, 19,
+        "TLS TLV: client provided certificate over current TLS session");
+
+    } else {
+      pr_trace_msg(trace_channel, 19, "TLS TLV: client connected using TLS");
+    }
+
+  } else {
+    pr_trace_msg(trace_channel, 19, "TLS TLV: client did connect using TLS");
+  }
+
+  if (verify > 0) {
+    pr_trace_msg(trace_channel, 19,
+      "TLS TLV: client provided verified certificate");
+  }
+
+  while (len > 0) {
+    uint8_t tls_type;
+    uint16_t tls_len;
+    void *tls_val;
+    size_t tls_valsz;
+
+    pr_signals_handle();
+
+    memcpy(&tls_type, ptr, sizeof(tls_type));
+    ptr += sizeof(tls_type);
+    len -= sizeof(tls_type);
+
+    memcpy(&tls_len, ptr, sizeof(tls_len));
+    ptr += sizeof(tls_len);
+    len -= sizeof(tls_len);
+
+    tls_valsz = ntohs(tls_len);
+    tls_val = ptr;
+    len -= tls_valsz;
+
+    switch (tls_type) {
+      /* TLS version */
+      case 0x21:
+        pr_trace_msg(trace_channel, 19,
+          "TLS TLV: TLS version: %.*s", (int) tls_valsz, (char *) tls_val);
+        break;
+
+      /* TLS CN */
+      case 0x22:
+        pr_trace_msg(trace_channel, 19,
+          "TLS TLV: TLS CN: %*.s", (int) tls_valsz, (char *) tls_val);
+        break;
+
+      /* TLS cipher */
+      case 0x23:
+        pr_trace_msg(trace_channel, 19,
+          "TLS TLV: TLS cipher: %.*s", (int) tls_valsz, (char *) tls_val);
+        break;
+
+      /* TLS signature algorithm */
+      case 0x24:
+        pr_trace_msg(trace_channel, 19,
+          "TLS TLV: TLS signature algorithm: %.*s", (int) tls_valsz,
+          (char *) tls_val);
+        break;
+
+      /* TLS key algorithm */
+      case 0x25:
+        pr_trace_msg(trace_channel, 19,
+          "TLS TLV: TLS key algorithm: %.*s", (int) tls_valsz,
+          (char *) tls_val);
+        break;
+
+      default:
+        pr_trace_msg(trace_channel, 3,
+          "unsupported TLS TLV: %0x", tls_type);
+    }
+  }
+
+  return 0;
+}
+
+static int read_haproxy_v2_tlvs(pool *p, conn_t *conn, size_t len) {
+  while (len > 0) {
+    int res;
+    uint8_t tlv_type;
+    uint16_t tlv_len;
+    size_t tlv_valsz;
+    void *tlv_val;
+    struct iovec tlv_hdr[2];
+
+    pr_signals_handle();
+
+    tlv_hdr[0].iov_base = (void *) &tlv_type;
+    tlv_hdr[0].iov_len = sizeof(tlv_type);
+    tlv_hdr[1].iov_base = (void *) &tlv_len;
+    tlv_hdr[1].iov_len = sizeof(tlv_len);
+
+    res = readv_sock(conn->rfd, tlv_hdr, 2);
+    if (res < 0) {
+      return -1;
+    }
+
+    if (res != 3) {
+      pr_trace_msg(trace_channel, 20, "read %lu TLV bytes, expected %lu bytes",
+        (unsigned long) res, (unsigned long) 3);
+      errno = EPERM;
+      return -1;
+    }
+
+    len -= res;
+
+    tlv_valsz = ntohs(tlv_len);
+    tlv_val = palloc(p, tlv_valsz);
+
+    /* TODO: Handle short reads, interrupted reads better? */
+    res = read(conn->rfd, tlv_val, tlv_valsz);
+    if (res < 0) {
+      return -1;
+    }
+
+    if ((size_t) res != tlv_valsz) {
+      pr_trace_msg(trace_channel, 20, "read %lu TLV bytes, expected %lu bytes",
+        (unsigned long) res, (unsigned long) tlv_valsz);
+      errno = EPERM;
+      return -1;
+    }
+
+    len -= res;
+
+    switch (tlv_type) {
+      /* ALPN */
+      case 0x01:
+        pr_trace_msg(trace_channel, 19,
+          "received proxy protocol V2 ALPN: %.*s", (int) tlv_valsz,
+          (char *) tlv_val);
+        break;
+
+      /* "Authority" (server name, ala SNI) */
+      case 0x02:
+        pr_trace_msg(trace_channel, 19,
+          "received proxy protocol V2 SNI: %.*s", (int) tlv_valsz,
+          (char *) tlv_val);
+        break;
+
+      /* CRC32 */
+      case 0x03:
+        pr_trace_msg(trace_channel, 19,
+          "received proxy protocol V2 CRC32 TLV (%lu bytes)",
+          (unsigned long) tlv_valsz);
+        break;
+
+      /* NOOP */
+      case 0x04:
+        pr_trace_msg(trace_channel, 19,
+          "received proxy protocol V2 NOOP TLV (%lu bytes)",
+          (unsigned long) tlv_valsz);
+        break;
+
+      /* Unique ID */
+      case 0x05:
+        pr_trace_msg(trace_channel, 19,
+          "received proxy protocol V2 Unique ID TLV (%lu bytes)",
+          (unsigned long) tlv_valsz);
+        break;
+
+      /* TLS */
+      case 0x20:
+        pr_trace_msg(trace_channel, 19,
+          "received proxy protocol V2 TLS TLV (%lu bytes)",
+          (unsigned long) tlv_valsz);
+        if (read_haproxy_v2_tls_tlv(p, tlv_val, tlv_valsz) < 0) {
+          return -1;
+        }
+        break;
+
+      /* Network namespace */
+      case 0x30:
+        pr_trace_msg(trace_channel, 19,
+          "received proxy protocol V2 Network Namespace: %.*s",
+          (int) tlv_valsz, (char *) tlv_val);
+        break;
+
+      default:
+        pr_trace_msg(trace_channel, 3,
+          "unsupported proxy protocol TLV: %0x", tlv_type);
+    }
+  }
+
+  return 0;
+}
+
 static int read_haproxy_v2(pool *p, conn_t *conn,
     const pr_netaddr_t **proxied_addr, unsigned int *proxied_port) {
   int res = 0;
@@ -668,18 +882,18 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
           uint16_t src_port, dst_port;
           struct iovec ipv4[4];
           struct sockaddr_in *saddr;
+          size_t tlv_len = 0;
 
           pr_trace_msg(trace_channel, 17,
             "received proxy protocol V2 TCP/IPv4 transport family (%lu bytes)",
             (unsigned long) ntohs(v2_len));
 
-          if (ntohs(v2_len) != 12) {
+          if (ntohs(v2_len) > 12) {
+            /* The addresses are followed by TLVs. */
+            tlv_len = ntohs(v2_len) - 12;
             pr_trace_msg(trace_channel, 3,
-              "proxy protocol V2 TCP/IPv4 transport family sent %lu bytes, "
-              "expected %lu bytes", (unsigned long) ntohs(v2_len),
-              (unsigned long) 12);
-            errno = EINVAL;
-            return -1;
+              "proxy protocol V2 TCP/IPv4 transport family received %lu bytes "
+              "of TLV data", (unsigned long) tlv_len);
           }
 
           ipv4[0].iov_base = (void *) &src_ipv4;
@@ -694,6 +908,12 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
           res = readv_sock(conn->rfd, ipv4, 4);
           if (res < 0) {
             return -1;
+          }
+
+          if (tlv_len > 0) {
+            if (read_haproxy_v2_tlvs(p, conn, tlv_len) < 0) {
+              return -1;
+            }
           }
 
           src_addr = pr_netaddr_alloc(p);
@@ -729,18 +949,18 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
           uint16_t src_port, dst_port;
           struct iovec ipv6[4];
           struct sockaddr_in6 *saddr;
+          size_t tlv_len = 0;
 
           pr_trace_msg(trace_channel, 17,
             "received proxy protocol V2 TCP/IPv6 transport family (%lu bytes)",
             (unsigned long) ntohs(v2_len));
 
-          if (ntohs(v2_len) != 36) {
+          if (ntohs(v2_len) > 36) {
+            /* The addresses are followed by TLVs. */
+            tlv_len = ntohs(v2_len) - 36;
             pr_trace_msg(trace_channel, 3,
-              "proxy protocol V2 TCP/IPv6 transport family sent %lu bytes, "
-              "expected %lu bytes", (unsigned long) ntohs(v2_len),
-              (unsigned long) 36);
-            errno = EINVAL;
-            return -1;
+              "proxy protocol V2 TCP/IPv4 transport family received %lu bytes "
+              "of TLV data", (unsigned long) tlv_len);
           }
 
 #ifdef PR_USE_IPV6
@@ -756,6 +976,12 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
           res = readv_sock(conn->rfd, ipv6, 4);
           if (res < 0) {
             return -1;
+          }
+
+          if (tlv_len > 0) {
+            if (read_haproxy_v2_tlvs(p, conn, tlv_len) < 0) {
+              return -1;
+            }
           }
 
           src_addr = pr_netaddr_alloc(p);
@@ -883,14 +1109,6 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
   if (src_addr == NULL &&
       dst_addr == NULL) {
     return 0;
-  }
-
-  if (ntohs(pr_netaddr_get_port(dst_addr)) > 65535) {
-    pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
-      ": out-of-range destination port provided: %u",
-      ntohs(pr_netaddr_get_port(dst_addr)));
-    errno = EINVAL;
-    return -1;
   }
 
   /* Paranoidly check the given source address/port against the
