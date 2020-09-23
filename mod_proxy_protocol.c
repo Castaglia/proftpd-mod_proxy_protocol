@@ -868,6 +868,9 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
   }
 
   if ((ver_cmd & 0xF0) != 0x20) {
+    pr_trace_msg(trace_channel, 3,
+      "PROXY V2 version/command value (%0x) did not match expected protocol "
+      "version (0x20)", ver_cmd);
     errno = EINVAL;
     return -1;
   }
@@ -935,10 +938,8 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
           pr_trace_msg(trace_channel, 17,
             "received proxy protocol V2 TCP/IPv4 transport family: "
             "source address %s#%d, destination address %s#%d",
-            pr_netaddr_get_ipstr(src_addr),
-            ntohs(pr_netaddr_get_port(src_addr)),
-            pr_netaddr_get_ipstr(dst_addr),
-            ntohs(pr_netaddr_get_port(dst_addr)));
+            pr_netaddr_get_ipstr(src_addr), ntohs(src_port),
+            pr_netaddr_get_ipstr(dst_addr), ntohs(dst_port));
 
           break;
         }
@@ -1012,10 +1013,8 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
           pr_trace_msg(trace_channel, 17,
             "received proxy protocol V2 TCP/IPv6 transport family: "
             "source address %s#%d, destination address %s#%d",
-            pr_netaddr_get_ipstr(src_addr),
-            ntohs(pr_netaddr_get_port(src_addr)),
-            pr_netaddr_get_ipstr(dst_addr),
-            ntohs(pr_netaddr_get_port(dst_addr)));
+            pr_netaddr_get_ipstr(src_addr), ntohs(src_port),
+            pr_netaddr_get_ipstr(dst_addr), ntohs(dst_port));
 #else
           /* Avoid compiler warnings about unused variables. */
           (void) src_ipv6;
@@ -1140,10 +1139,12 @@ static int read_proxied_addr(pool *p, conn_t *conn,
 
   switch (proxy_protocol_version) {
     case PROXY_PROTOCOL_VERSION_HAPROXY_V1:
+      pr_trace_msg(trace_channel, 19, "reading PROXY V1 message");
       res = read_haproxy_v1(p, conn, proxied_addr, proxied_port);
       break;
 
     case PROXY_PROTOCOL_VERSION_HAPROXY_V2:
+      pr_trace_msg(trace_channel, 19, "reading PROXY V2 message");
       res = read_haproxy_v2(p, conn, proxied_addr, proxied_port);
       break;
 
