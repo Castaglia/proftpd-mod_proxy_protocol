@@ -267,6 +267,51 @@ to your existing server:
   $ prxs -c -i -d mod_proxy_protocol.c
 </pre>
 
+<p><a name="FAQ">
+<b>Frequently Asked Questions</b><br>
+
+<p><a name="HAProxyHeadersInDataFiles">
+<font color=red>Question</font>: We are using HAProxy in front of ProFTPD, and
+we see <code>PROXY</code> protocol headers appended to our upload files.  What
+is wrong?<br>
+<font color=blue>Answer</font>: Usually this happens because of the specific
+HAProxy configuration used -- and can be fixed by adjusting that HAProxy
+configuration.
+
+<p>
+Let's assume your HAProxy configuration looks something like this:
+<pre>
+  listen ftp
+    bind 0.0.0.0:21,:60000-60250
+    mode tcp
+    balance source
+    server services-a 192.168.1.71 send-proxy-v2 check port 21
+    server services-b 192.168.1.72 send-proxy-v2 check port 21
+</pre>
+This causes HAProxy to use the PROXY protocol (via <code>send-proxy-v2</code>)
+for control <em>and data connections</em>, which is probably not what you
+intended.
+
+<p>
+The solution is to use separate HAProxy configurations for the FTP control
+and FTP data addresses/ports, and to <b>not</b> use <code>send-proxy-v2</code>
+(or <code>send-proxy</code>) for the FTP data ports:
+<pre>
+  listen ftp
+    bind 0.0.0.0:21
+    mode tcp
+    balance source
+    server services-a 192.168.1.71 send-proxy-v2 check port 21
+    server services-b 192.168.1.72 send-proxy-v2 check port 21
+
+  listen ftp-data
+    bind :60000-60250
+    mode tcp
+    balance source
+    server services-a 192.168.1.71 check port 21
+    server services-b 192.168.1.72 check port 21
+</pre>
+
 <p>
 <hr>
 <font size=2><b><i>
