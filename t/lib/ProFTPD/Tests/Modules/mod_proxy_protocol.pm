@@ -143,6 +143,16 @@ my $TESTS = {
     test_class => [qw(forking mod_proxy_protocol)],
   },
 
+  proxy_protocol_login_using_proxied_server_address => {
+    order => ++$order,
+    test_class => [qw(forking mod_proxy_protocol)],
+  },
+
+  proxy_protocol_login_no_matching_proxied_server_address => {
+    order => ++$order,
+    test_class => [qw(forking mod_proxy_protocol)],
+  },
+
 };
 
 sub new {
@@ -222,7 +232,6 @@ sub proxy_protocol_login_with_proxy {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -299,7 +308,6 @@ sub proxy_protocol_login_without_proxy {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   if ($ex) {
@@ -403,7 +411,6 @@ EOC
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -481,7 +488,6 @@ sub proxy_protocol_bad_start_of_line {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -559,7 +565,6 @@ sub proxy_protocol_bad_end_of_line {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -637,7 +642,6 @@ sub proxy_protocol_bad_proto {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -715,7 +719,6 @@ sub proxy_protocol_bad_src_addr {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -793,7 +796,6 @@ sub proxy_protocol_dns_src_addr {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -871,7 +873,6 @@ sub proxy_protocol_bad_dst_addr {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -949,7 +950,6 @@ sub proxy_protocol_dns_dst_addr {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1027,7 +1027,6 @@ sub proxy_protocol_bad_src_port {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1105,7 +1104,6 @@ sub proxy_protocol_bad_dst_port {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1183,7 +1181,6 @@ sub proxy_protocol_too_large_src_port {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1261,7 +1258,6 @@ sub proxy_protocol_too_large_dst_port {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1340,7 +1336,6 @@ sub proxy_protocol_tcp4_with_ipv6_src_addr {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1419,7 +1414,6 @@ sub proxy_protocol_tcp4_with_ipv6_dst_addr {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1498,7 +1492,6 @@ sub proxy_protocol_tcp6_with_ipv4_src_addr {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1577,7 +1570,6 @@ sub proxy_protocol_tcp6_with_ipv4_dst_addr {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1656,7 +1648,6 @@ sub proxy_protocol_tcp6_with_useipv6_off {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1734,7 +1725,6 @@ sub proxy_protocol_matching_src_dst_info {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1809,7 +1799,6 @@ sub proxy_protocol_unknown_proto {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -1910,7 +1899,6 @@ sub proxy_protocol_active_transfer_with_proxy {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -2012,7 +2000,6 @@ sub proxy_protocol_passive_transfer_with_proxy {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -2118,7 +2105,6 @@ sub proxy_protocol_active_transfer_with_proxy_allowforeignaddress {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -2224,7 +2210,207 @@ sub proxy_protocol_passive_transfer_with_proxy_allowforeignaddress {
 
   # Stop server
   server_stop($setup->{pid_file});
+  $self->assert_child_ok($pid);
 
+  test_cleanup($setup->{log_file}, $ex);
+}
+
+sub proxy_protocol_login_using_proxied_server_address {
+  my $self = shift;
+  my $tmpdir = $self->{tmpdir};
+  my $setup = test_setup($tmpdir, 'proxy_protocol');
+
+  my $config = {
+    PidFile => $setup->{pid_file},
+    ScoreboardFile => $setup->{scoreboard_file},
+    SystemLog => $setup->{log_file},
+    TraceLog => $setup->{log_file},
+    Trace => 'proxy_protocol:20',
+
+    AuthUserFile => $setup->{auth_user_file},
+    AuthGroupFile => $setup->{auth_group_file},
+
+    IfModules => {
+      'mod_delay.c' => {
+        DelayEngine => 'off',
+      },
+
+      'mod_proxy_protocol.c' => {
+        ProxyProtocolEngine => 'on',
+        ProxyProtocolOptions => 'UseProxiedServerAddress',
+      },
+    },
+
+    Limit => {
+      LOGIN => {
+        DenyUser => $setup->{user},
+      },
+    },
+  };
+
+  my ($port, $config_user, $config_group) = config_write($setup->{config_file},
+    $config);
+
+  my $proxied_dst_addr = '127.0.0.1';
+  my $proxied_dst_port = ProFTPD::TestSuite::Utils::get_high_numbered_port();
+  $proxied_dst_port += 7;
+
+  if (open(my $fh, ">> $setup->{config_file}")) {
+    print $fh <<EOC;
+<VirtualHost $proxied_dst_addr>
+  Port $proxied_dst_port
+  ServerName "Real Destination Server"
+
+  WtmpLog off
+  TransferLog none
+
+  AuthUserFile $setup->{auth_user_file}
+  AuthGroupFile $setup->{auth_group_file}
+  AuthOrder mod_auth_file.c
+</VirtualHost>
+EOC
+    unless (close($fh)) {
+      die("Can't write $setup->{config_file}: $!");
+    }
+
+  } else {
+    die("Can't open $setup->{config_file}: $!");
+  }
+
+  # Open pipes, for use between the parent and child processes.  Specifically,
+  # the child will indicate when it's done with its test by writing a message
+  # to the parent.
+  my ($rfh, $wfh);
+  unless (pipe($rfh, $wfh)) {
+    die("Can't open pipe: $!");
+  }
+
+  my $ex;
+
+  # Fork child
+  $self->handle_sigchld();
+  defined(my $pid = fork()) or die("Can't fork: $!");
+  if ($pid) {
+    eval {
+      sleep(2);
+
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ['TCP4', '1.1.1.1', $proxied_dst_addr, 111, $proxied_dst_port]);
+      $client->login($setup->{user}, $setup->{passwd});
+      $client->quit();
+    };
+    if ($@) {
+      $ex = $@;
+    }
+
+    $wfh->print("done\n");
+    $wfh->flush();
+
+  } else {
+    eval { server_wait($setup->{config_file}, $rfh, 10) };
+    if ($@) {
+      warn($@);
+      exit 1;
+    }
+
+    exit 0;
+  }
+
+  # Stop server
+  server_stop($setup->{pid_file});
+  $self->assert_child_ok($pid);
+
+  test_cleanup($setup->{log_file}, $ex);
+}
+
+sub proxy_protocol_login_no_matching_proxied_server_address {
+  my $self = shift;
+  my $tmpdir = $self->{tmpdir};
+  my $setup = test_setup($tmpdir, 'proxy_protocol');
+
+  my $config = {
+    PidFile => $setup->{pid_file},
+    ScoreboardFile => $setup->{scoreboard_file},
+    SystemLog => $setup->{log_file},
+    TraceLog => $setup->{log_file},
+    Trace => 'proxy_protocol:20',
+
+    AuthUserFile => $setup->{auth_user_file},
+    AuthGroupFile => $setup->{auth_group_file},
+
+    IfModules => {
+      'mod_delay.c' => {
+        DelayEngine => 'off',
+      },
+
+      'mod_proxy_protocol.c' => {
+        ProxyProtocolEngine => 'on',
+        ProxyProtocolOptions => 'UseProxiedServerAddress',
+      },
+    },
+
+    Limit => {
+      LOGIN => {
+        DenyUser => $setup->{user},
+      },
+    },
+  };
+
+  my ($port, $config_user, $config_group) = config_write($setup->{config_file},
+    $config);
+
+  my $proxied_dst_addr = '127.0.0.1';
+  my $proxied_dst_port = ProFTPD::TestSuite::Utils::get_high_numbered_port();
+  $proxied_dst_port += 7;
+
+  # Open pipes, for use between the parent and child processes.  Specifically,
+  # the child will indicate when it's done with its test by writing a message
+  # to the parent.
+  my ($rfh, $wfh);
+  unless (pipe($rfh, $wfh)) {
+    die("Can't open pipe: $!");
+  }
+
+  my $ex;
+
+  # Fork child
+  $self->handle_sigchld();
+  defined(my $pid = fork()) or die("Can't fork: $!");
+  if ($pid) {
+    eval {
+      sleep(2);
+
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ['TCP4', '1.1.1.1', $proxied_dst_addr, 111, $proxied_dst_port]);
+
+      # Our requested server address doesn't exist, thus we expect this
+      # login to fail due to the DenyUser <Limit LOGIN>.
+      eval { $client->login($setup->{user}, $setup->{passwd}) };
+      unless ($@) {
+        die("Login for user '$setup->{user}' succeeded expectedly");
+      }
+
+      $client->quit();
+    };
+    if ($@) {
+      $ex = $@;
+    }
+
+    $wfh->print("done\n");
+    $wfh->flush();
+
+  } else {
+    eval { server_wait($setup->{config_file}, $rfh, 10) };
+    if ($@) {
+      warn($@);
+      exit 1;
+    }
+
+    exit 0;
+  }
+
+  # Stop server
+  server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);

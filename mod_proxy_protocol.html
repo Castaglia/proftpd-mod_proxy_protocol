@@ -46,6 +46,7 @@ questions, concerns, or suggestions regarding this module.
 <h2>Directives</h2>
 <ul>
   <li><a href="#ProxyProtocolEngine">ProxyProtocolEngine</a>
+  <li><a href="#ProxyProtocolOptions">ProxyProtocolOptions</a>
   <li><a href="#ProxyProtocolTimeout">ProxyProtocolTimeout</a>
   <li><a href="#ProxyProtocolVersion">ProxyProtocolVersion</a>
 </ul>
@@ -63,6 +64,39 @@ questions, concerns, or suggestions regarding this module.
 The <code>ProxyProtocolEngine</code> directive enables the expectation
 and handling of protocols which provide information on proxied connections;
 support for these protocols is provided by <code>mod_proxy_protocol</code>.
+
+<p>
+<hr>
+<h2><a name="ProxyProtocolOptions">ProxyProtocolOptions</a></h3>
+<strong>Syntax:</strong> ProxyProtocolOptions <em>opt1 ...</em><br>
+<strong>Default:</strong> None<br>
+<strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>
+<strong>Module:</strong> mod_proxy_protocol<br>
+<strong>Compatibility:</strong> 1.3.5a and later
+
+<p>
+The <code>ProxyProtocolOptions</code> directive is used to configure various
+optional behavior of <code>mod_proxy_protocol</code>.  For example:
+<pre>
+  ProxyProtocolOptions UseProxiedServerAddress
+</pre>
+
+<p>
+The currently implemented options are:
+<ul>
+  <li><code>UseProxiedServerAddress</code><br>
+    <p>
+    The <code>PROXY</code> protocol sends both the original source (client)
+    IP address/port, <i>and</i> the original destination (server) address/port.
+    The <code>mod_proxy_protocol</code> module only uses the client IP
+    address/port in the <code>PROXY</code> protocol message by default.  Use
+    this option to tell <code>mod_proxy_protocol</code> to use the provided
+    server address/port as well, by looking for any matching
+    <code>&lt;VirtualHost&gt;</code> configurations, and using them if found.
+    Note that if no matching <code>&lt;VirtualHost&gt;</code> configurations
+    are found, the proxied server address/port information will be ignored.
+  </li>
+</ul>
 
 <p>
 <hr>
@@ -315,7 +349,7 @@ and FTP data addresses/ports, and to <b>not</b> use <code>send-proxy-v2</code>
 <p>
 <hr>
 <font size=2><b><i>
-&copy; Copyright 2013-2020 TJ Saunders<br>
+&copy; Copyright 2013-2021 TJ Saunders<br>
  All Rights Reserved<br>
 </i></b></font>
 
