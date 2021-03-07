@@ -1,6 +1,6 @@
 /*
  * ProFTPD - mod_proxy_protocol
- * Copyright (c) 2013-2020 TJ Saunders
+ * Copyright (c) 2013-2021 TJ Saunders
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,9 +33,12 @@
 #define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.4"
 
 /* Make sure the version of proftpd is as necessary. */
-#if PROFTPD_VERSION_NUMBER < 0x0001030504
-# error "ProFTPD 1.3.5rc4 or later required"
+#if PROFTPD_VERSION_NUMBER < 0x0001030507
+# error "ProFTPD 1.3.5a or later required"
 #endif
+
+/* From response.c.  XXX Need to provide these symbols another way. */
+extern pr_response_t *resp_list;
 
 module proxy_protocol_module;
 
@@ -47,6 +50,11 @@ static int proxy_protocol_timeout = PROXY_PROTOCOL_TIMEOUT_DEFAULT;
 #define PROXY_PROTOCOL_VERSION_HAPROXY_V1	1
 #define PROXY_PROTOCOL_VERSION_HAPROXY_V2	2
 static unsigned int proxy_protocol_version = PROXY_PROTOCOL_VERSION_HAPROXY_V1;
+
+/* mod_proxy_protocol option flags */
+#define PROXY_PROTOCOL_OPT_USE_PROXIED_SERVER_ADDR	0x0001
+
+static unsigned long proxy_protocol_opts = 0UL;
 
 static const char *trace_channel = "proxy_protocol";
 
@@ -291,8 +299,8 @@ static unsigned int strtou(const char **str, const char *last) {
   return i;
 }
 
-/* This function waits a PROXY protocol header at the beginning of the
- * raw data stream. The header looks like this :
+/* This function waits for a PROXY protocol header at the beginning of the
+ * raw data stream. The header looks like this:
  *
  *   "PROXY" <sp> PROTO <sp> SRC3 <sp> DST3 <sp> SRC4 <sp> <DST4> "\r\n"
  *
@@ -301,11 +309,12 @@ static unsigned int strtou(const char **str, const char *last) {
  *  - PROTO: layer 4 protocol, which must be "TCP4" or "TCP6".
  *  - SRC3:  layer 3 (e.g. IP) source address in standard text form
  *  - DST3:  layer 3 (e.g. IP) destination address in standard text form
- *  - SRC4:  layer 4 (e.g. TCP port) source address in standard text form
- *  - DST4:  layer 4 (e.g. TCP port) destination address in standard text form
+ *  - SRC4:  layer 4 (e.g. TCP port) source port in standard text form
+ *  - DST4:  layer 4 (e.g. TCP port) destination port in standard text form
  */
 static int read_haproxy_v1(pool *p, conn_t *conn,
-    const pr_netaddr_t **proxied_addr, unsigned int *proxied_port) {
+    const pr_netaddr_t **proxied_src_addr, unsigned int *proxied_src_port,
+    const pr_netaddr_t **proxied_dst_addr, unsigned int *proxied_dst_port) {
   register unsigned int i;
   char buf[PROXY_PROTOCOL_BUFSZ], *last = NULL, *ptr = NULL;
   int have_cr = FALSE, have_nl = FALSE, have_tcp4 = FALSE, have_tcp6 = FALSE;
@@ -405,7 +414,20 @@ static int read_haproxy_v1(pool *p, conn_t *conn,
 #endif /* PR_USE_IPV6 */
   }
 
-  if (have_tcp4 || have_tcp6) {
+  if (have_tcp4 == FALSE &&
+      have_tcp6 == FALSE) {
+    if (strncmp(ptr, "UNKNOWN", 7) == 0) {
+      pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
+        ": client cannot provide proxied address: '%.100s'", buf);
+      errno = ENOENT;
+      return 0;
+    }
+
+    pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
+      ": unknown/unsupported PROTO field");
+    goto bad_proto;
+
+  } else {
     const pr_netaddr_t *src_addr = NULL, *dst_addr = NULL;
     char *ptr2 = NULL;
     unsigned int src_port, dst_port;
@@ -471,7 +493,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn,
      * hex.
      */ 
 
-    if (have_tcp4) {
+    if (have_tcp4 == TRUE) {
       if (pr_netaddr_get_family(src_addr) != AF_INET) {
         pr_log_debug(DEBUG8, MOD_PROXY_PROTOCOL_VERSION
           ": expected IPv4 source address for '%s', got IPv6",
@@ -588,19 +610,11 @@ static int read_haproxy_v1(pool *p, conn_t *conn,
     /* Set the source port for the source address. */
     pr_netaddr_set_port((pr_netaddr_t *) src_addr, htons(src_port));
 
-    *proxied_addr = src_addr;
-    *proxied_port = src_port;
+    *proxied_src_addr = src_addr;
+    *proxied_src_port = src_port;
 
-  } else if (strncmp(ptr, "UNKNOWN", 7) == 0) {
-    pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
-      ": client cannot provide proxied address: '%.100s'", buf);
-    errno = ENOENT;
-    return 0;
-
-  } else {
-    pr_log_debug(DEBUG5, MOD_PROXY_PROTOCOL_VERSION
-      ": unknown/unsupported PROTO field");
-    goto bad_proto;
+    *proxied_dst_addr = dst_addr;
+    *proxied_dst_port = dst_port;
   }
  
   return 1;
@@ -831,7 +845,8 @@ static int read_haproxy_v2_tlvs(pool *p, conn_t *conn, size_t len) {
 }
 
 static int read_haproxy_v2(pool *p, conn_t *conn,
-    const pr_netaddr_t **proxied_addr, unsigned int *proxied_port) {
+    const pr_netaddr_t **proxied_src_addr, unsigned int *proxied_src_port,
+    const pr_netaddr_t **proxied_dst_addr, unsigned int *proxied_dst_port) {
   int res = 0;
   uint8_t v2_sig[12], ver_cmd, trans_fam;
   uint16_t v2_len;
@@ -1125,14 +1140,18 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
     return -1;
   }
 
-  *proxied_addr = src_addr;
-  *proxied_port = ntohs(pr_netaddr_get_port(src_addr));
+  *proxied_src_addr = src_addr;
+  *proxied_src_port = ntohs(pr_netaddr_get_port(src_addr));
+
+  *proxied_dst_addr = dst_addr;
+  *proxied_dst_port = ntohs(pr_netaddr_get_port(dst_addr));
 
   return 0;
 }
 
-static int read_proxied_addr(pool *p, conn_t *conn,
-   const pr_netaddr_t **proxied_addr, unsigned int *proxied_port) {
+static int read_proxied_addrs(pool *p, conn_t *conn,
+   const pr_netaddr_t **proxied_src_addr, unsigned int *proxied_src_port,
+   const pr_netaddr_t **proxied_dst_addr, unsigned int *proxied_dst_port) {
   int res;
 
   /* Note that in theory, we could auto-detect the protocol version. */
@@ -1140,12 +1159,14 @@ static int read_proxied_addr(pool *p, conn_t *conn,
   switch (proxy_protocol_version) {
     case PROXY_PROTOCOL_VERSION_HAPROXY_V1:
       pr_trace_msg(trace_channel, 19, "reading PROXY V1 message");
-      res = read_haproxy_v1(p, conn, proxied_addr, proxied_port);
+      res = read_haproxy_v1(p, conn, proxied_src_addr, proxied_src_port,
+        proxied_dst_addr, proxied_dst_port);
       break;
 
     case PROXY_PROTOCOL_VERSION_HAPROXY_V2:
       pr_trace_msg(trace_channel, 19, "reading PROXY V2 message");
-      res = read_haproxy_v2(p, conn, proxied_addr, proxied_port);
+      res = read_haproxy_v2(p, conn, proxied_src_addr, proxied_src_port,
+        proxied_dst_addr, proxied_dst_port);
       break;
 
     default:
@@ -1187,6 +1208,36 @@ MODRET set_proxyprotocolengine(cmd_rec *cmd) {
   c = add_config_param(cmd->argv[0], 1, NULL);
   c->argv[0] = pcalloc(c->pool, sizeof(int));
   *((int *) c->argv[0]) = engine;
+
+  return PR_HANDLED(cmd);
+}
+
+/* usage: ProxyProtocolOptions opt1 ... */
+MODRET set_proxyprotocoloptions(cmd_rec *cmd) {
+  register unsigned int i;
+  unsigned long opts = 0UL;
+  config_rec *c = NULL;
+
+  if (cmd->argc-1 == 0) {
+    CONF_ERROR(cmd, "wrong number of parameters");
+  }
+
+  CHECK_CONF(cmd, CONF_ROOT|CONF_VIRTUAL|CONF_GLOBAL);
+
+  c = add_config_param(cmd->argv[0], 1, NULL);
+
+  for (i = 1; i < cmd->argc; i++) {
+    if (strcmp(cmd->argv[i], "UseProxiedServerAddress") == 0) {
+      opts |= PROXY_PROTOCOL_OPT_USE_PROXIED_SERVER_ADDR;
+
+    } else {
+      CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, ": unknown ProxyProtocolOption '",
+        cmd->argv[i], "'", NULL));
+    }
+  }
+
+  c->argv[0] = pcalloc(c->pool, sizeof(unsigned long));
+  *((unsigned long *) c->argv[0]) = opts;
 
   return PR_HANDLED(cmd);
 }
@@ -1243,8 +1294,8 @@ MODRET set_proxyprotocolversion(cmd_rec *cmd) {
 static int proxy_protocol_sess_init(void) {
   config_rec *c;
   int engine = 0, res = 0, timerno = -1, xerrno;
-  const pr_netaddr_t *proxied_addr = NULL;
-  unsigned int proxied_port = 0;
+  const pr_netaddr_t *proxied_src_addr = NULL, *proxied_dst_addr = NULL;
+  unsigned int proxied_src_port = 0, proxied_dst_port = 0;
   const char *remote_ip = NULL, *remote_name = NULL;
   pr_netio_t *tls_netio = NULL;
 
@@ -1255,6 +1306,19 @@ static int proxy_protocol_sess_init(void) {
 
   if (engine == FALSE) {
     return 0;
+  }
+
+  /* ProxyProtocolOptions */
+  c = find_config(main_server->conf, CONF_PARAM, "ProxyProtocolOptions", FALSE);
+  while (c != NULL) {
+    unsigned long opts = 0;
+
+    pr_signals_handle();
+
+    opts = *((unsigned long *) c->argv[0]);
+    proxy_protocol_opts |= opts;
+
+    c = find_config_next(c, c->next, CONF_PARAM, "ProxyProtocolOptions", FALSE);
   }
 
   c = find_config(main_server->conf, CONF_PARAM, "ProxyProtocolTimeout", FALSE);
@@ -1274,7 +1338,7 @@ static int proxy_protocol_sess_init(void) {
   }
 
   /* If the mod_tls module is in effect, then we need to work around its
-   * use of the NetIO API.  Otherwise, trying to read the proxied address
+   * use of the NetIO API.  Otherwise, trying to read the proxied addresses
    * on the control connection will cause problems, e.g. for FTPS clients
    * using implicit TLS.
    */
@@ -1287,12 +1351,12 @@ static int proxy_protocol_sess_init(void) {
     tls_netio = NULL;
 
   } else {
-    /* Unregister it; we'll put it back after reading the proxied address. */
+    /* Unregister it; we'll put it back after reading the proxied addresses. */
     pr_unregister_netio(PR_NETIO_STRM_CTRL);
   }
 
-  res = read_proxied_addr(session.pool, session.c, &proxied_addr,
-    &proxied_port);
+  res = read_proxied_addrs(session.pool, session.c, &proxied_src_addr,
+    &proxied_src_port, &proxied_dst_addr, &proxied_dst_port);
   xerrno = errno;
 
   if (tls_netio != NULL) {
@@ -1314,17 +1378,18 @@ static int proxy_protocol_sess_init(void) {
     return -1;
   }
 
-  if (proxied_addr != NULL) {
+  if (proxied_src_addr != NULL) {
     remote_ip = pstrdup(session.pool,
       pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()));
     remote_name = pstrdup(session.pool,
       pr_netaddr_get_sess_remote_name());
 
     pr_log_debug(DEBUG9, MOD_PROXY_PROTOCOL_VERSION
-      ": using proxied source address: %s", pr_netaddr_get_ipstr(proxied_addr));
+      ": using proxied source address: %s",
+      pr_netaddr_get_ipstr(proxied_src_addr));
 
-    session.c->remote_addr = proxied_addr;
-    session.c->remote_port = proxied_port;
+    session.c->remote_addr = proxied_src_addr;
+    session.c->remote_port = proxied_src_port;
 
     /* Now perform reverse DNS lookups. */
     if (ServerUseReverseDNS) {
@@ -1339,12 +1404,78 @@ static int proxy_protocol_sess_init(void) {
       session.c->remote_name = pr_netaddr_get_ipstr(session.c->remote_addr);
     }
 
-    pr_netaddr_set_sess_addrs();
-
     pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
       ": UPDATED client remote address/name: %s/%s (WAS %s/%s)",
       pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()),
       pr_netaddr_get_sess_remote_name(), remote_ip, remote_name);
+
+    if (proxy_protocol_opts & PROXY_PROTOCOL_OPT_USE_PROXIED_SERVER_ADDR) {
+      server_rec *proxied_server = NULL;
+
+      /* Add "mod_proxy_protocol.proxied_server_addr" session note.  With, or
+       *   without, port?
+       */
+
+      if (pr_netaddr_cmp(session.c->local_addr, proxied_dst_addr) != 0 ||
+          session.c->local_port != proxied_dst_port) {
+
+        /* Notify any listeners (e.g. mod_autohost) of the proxied address, to
+         * give them a chance to update/modify the configuration.
+         */
+        pr_event_generate("mod_proxy_protocol.proxied-server-address",
+          proxied_dst_addr);
+
+        proxied_server = pr_ipbind_get_server(proxied_dst_addr,
+          proxied_dst_port);
+      }
+
+      if (proxied_server != NULL &&
+          proxied_server != main_server) {
+        pool *tmp_pool = NULL;
+        cmd_rec *host_cmd = NULL;
+
+        pr_log_debug(DEBUG0,
+          "Changing to server '%s' (%s:%d) due to PROXY protocol",
+          proxied_server->ServerName, pr_netaddr_get_ipstr(proxied_dst_addr),
+          proxied_dst_port);
+
+        pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+          ": UPDATED local server address/port: %s:%d (WAS %s:%d)",
+          pr_netaddr_get_ipstr(pr_netaddr_get_sess_local_addr()),
+          session.c->local_port, pr_netaddr_get_ipstr(proxied_dst_addr),
+          proxied_dst_port);
+
+        session.c->local_addr = proxied_dst_addr;
+        session.c->local_port = proxied_dst_port;
+
+        /* Set a session flag indicating that the main_server pointer
+         * changed.
+         */
+        session.prev_server = main_server;
+        main_server = proxied_server;
+
+        pr_event_generate("core.session-reinit", proxied_server);
+
+        /* Now we need to inform the modules of the changed config, to let them
+         * do their checks.
+         */
+        tmp_pool = make_sub_pool(session.pool);
+        pr_pool_tag(tmp_pool, "ProxyProtocol UseProxiedServerAddress pool");
+
+        host_cmd = pr_cmd_alloc(tmp_pool, 2, pstrdup(tmp_pool, C_HOST),
+          pstrdup(tmp_pool, pr_netaddr_get_ipstr(proxied_dst_addr)), NULL);
+        pr_cmd_dispatch_phase(host_cmd, POST_CMD, 0);
+        pr_cmd_dispatch_phase(host_cmd, LOG_CMD, 0);
+        pr_response_clear(&resp_list);
+
+        destroy_pool(tmp_pool);
+      }
+    }
+
+    /* Note that we set the session addresses (remote and local) only after
+     * possible processing of the proxied destination address.
+     */
+    pr_netaddr_set_sess_addrs();
 
     /* Find the new class for this session. */
     session.conn_class = pr_class_match_addr(session.c->remote_addr);
@@ -1367,6 +1498,7 @@ static int proxy_protocol_sess_init(void) {
 
 static conftable proxy_protocol_conftab[] = {
   { "ProxyProtocolEngine",	set_proxyprotocolengine,	NULL },
+  { "ProxyProtocolOptions",	set_proxyprotocoloptions,	NULL },
   { "ProxyProtocolTimeout",	set_proxyprotocoltimeout,	NULL },
   { "ProxyProtocolVersion",	set_proxyprotocolversion,	NULL },
 
@@ -1401,4 +1533,3 @@ module proxy_protocol_module = {
   /* Module version */
   MOD_PROXY_PROTOCOL_VERSION
 };
-
