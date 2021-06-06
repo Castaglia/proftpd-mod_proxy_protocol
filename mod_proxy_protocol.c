@@ -682,9 +682,13 @@ static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
     pr_trace_msg(trace_channel, 19, "TLS TLV: client did connect using TLS");
   }
 
-  if (verify > 0) {
+  if (verify == 0) {
     pr_trace_msg(trace_channel, 19,
       "TLS TLV: client provided verified certificate");
+
+  } else {
+    pr_trace_msg(trace_channel, 19,
+      "TLS TLV: client did not provide verified certificate");
   }
 
   while (len > 0) {
