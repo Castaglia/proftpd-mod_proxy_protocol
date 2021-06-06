@@ -819,7 +819,7 @@ static int read_haproxy_v2_tlvs(pool *p, conn_t *conn, size_t len) {
       /* "Authority" (server name, ala SNI) */
       case 0x02:
         pr_trace_msg(trace_channel, 19,
-          "received proxy protocol V2 SNI: %.*s", (int) tlv_valsz,
+          "received proxy protocol V2 Authority (SNI): %.*s", (int) tlv_valsz,
           (char *) tlv_val);
         add_tlv_session_note("mod_proxy_protocol.authority", tlv_val,
           tlv_valsz);
