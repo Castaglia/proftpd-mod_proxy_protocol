@@ -628,6 +628,21 @@ bad_proto:
   return -1;
 }
 
+static void add_tlv_session_note(const char *key, const char *tlv_val,
+    size_t tlv_valsz) {
+  void *val;
+  size_t valsz;
+
+  /* TLVs are NOT null-terminated strings, but we want to store their
+   * session notes as such.
+   */
+  valsz = tlv_valsz + 1;
+  val = pr_table_pcalloc(session.notes, valsz);
+  memcpy(val, tlv_val, tlv_valsz);
+
+  (void) pr_table_add(session.notes, key, val, valsz);
+}
+
 static const char haproxy_v2_sig[12] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
 
 /* The TLS TLV is convoluted enough to warrant its own special function. */
@@ -697,24 +712,24 @@ static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
       case 0x21:
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS version: %.*s", (int) tls_valsz, (char *) tls_val);
-        (void) pr_table_add_dup(session.notes, "mod_proxy_protocol.tls-version",
-          tlv_val, (size_t) tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.version", tlv_val,
+          tlv_valsz);
         break;
 
       /* TLS CN */
       case 0x22:
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS CN: %*.s", (int) tls_valsz, (char *) tls_val);
-        (void) pr_table_add_dup(session.notes,
-          "mod_proxy_protocol.tls-common-name", tlv_val, (size_t) tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.common-name", tlv_val,
+          tlv_valsz);
         break;
 
       /* TLS cipher */
       case 0x23:
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS cipher: %.*s", (int) tls_valsz, (char *) tls_val);
-        (void) pr_table_add_dup(session.notes, "mod_proxy_protocol.tls-cipher",
-          tlv_val, (size_t) tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.cipher", tlv_val,
+          tlv_valsz);
         break;
 
       /* TLS signature algorithm */
@@ -722,8 +737,8 @@ static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS signature algorithm: %.*s", (int) tls_valsz,
           (char *) tls_val);
-        (void) pr_table_add_dup(session.notes,
-          "mod_proxy_protocol.tls-signature-algo", tlv_val, (size_t) tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.signature-algo", tlv_val,
+          tlv_valsz);
         break;
 
       /* TLS key algorithm */
@@ -731,8 +746,8 @@ static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS key algorithm: %.*s", (int) tls_valsz,
           (char *) tls_val);
-        (void) pr_table_add_dup(session.notes,
-          "mod_proxy_protocol.tls-key-algo", tlv_val, (size_t) tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.key-algo", tlv_val,
+          tlv_valsz);
         break;
 
       default:
@@ -798,8 +813,7 @@ static int read_haproxy_v2_tlvs(pool *p, conn_t *conn, size_t len) {
         pr_trace_msg(trace_channel, 19,
           "received proxy protocol V2 ALPN: %.*s", (int) tlv_valsz,
           (char *) tlv_val);
-        (void) pr_table_add_dup(session.notes, "mod_proxy_protocol.alpn",
-          tlv_val, (size_t) tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.alpn", tlv_val, tlv_valsz);
         break;
 
       /* "Authority" (server name, ala SNI) */
@@ -807,8 +821,8 @@ static int read_haproxy_v2_tlvs(pool *p, conn_t *conn, size_t len) {
         pr_trace_msg(trace_channel, 19,
           "received proxy protocol V2 SNI: %.*s", (int) tlv_valsz,
           (char *) tlv_val);
-        (void) pr_table_add_dup(session.notes, "mod_proxy_protocol.authority",
-          tlv_val, (size_t) tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.authority", tlv_val,
+          tlv_valsz);
         break;
 
       /* CRC32 */
@@ -830,8 +844,8 @@ static int read_haproxy_v2_tlvs(pool *p, conn_t *conn, size_t len) {
         pr_trace_msg(trace_channel, 19,
           "received proxy protocol V2 Unique ID TLV (%lu bytes)",
           (unsigned long) tlv_valsz);
-        (void) pr_table_add_dup(session.notes, "mod_proxy_protocol.unique-id",
-          tlv_val, (size_t) tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.unique-id", tlv_val,
+          tlv_valsz);
         break;
 
       /* TLS */
