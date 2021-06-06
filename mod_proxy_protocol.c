@@ -640,6 +640,8 @@ static void add_tlv_session_note(const char *key, const char *tlv_val,
   val = pr_table_pcalloc(session.notes, valsz);
   memcpy(val, tlv_val, tlv_valsz);
 
+  pr_trace_msg(trace_channel, 17,
+    "adding session note: %s = %s", key, val);
   (void) pr_table_add(session.notes, key, val, valsz);
 }
 
@@ -662,6 +664,7 @@ static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
   memcpy(&verify, ptr, sizeof(verify));
   ptr += sizeof(verify);
   len -= sizeof(verify);
+  verify = ntohl(verify);
 
   if (client > 0) {
     /* CLIENT_CERT_CONN */
@@ -679,7 +682,8 @@ static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
     }
 
   } else {
-    pr_trace_msg(trace_channel, 19, "TLS TLV: client did connect using TLS");
+    pr_trace_msg(trace_channel, 19,
+      "TLS TLV: client did not connect using TLS");
   }
 
   if (verify == 0) {
@@ -716,24 +720,24 @@ static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
       case 0x21:
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS version: %.*s", (int) tls_valsz, (char *) tls_val);
-        add_tlv_session_note("mod_proxy_protocol.tls.version", tlv_val,
-          tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.version", tls_val,
+          tls_valsz);
         break;
 
       /* TLS CN */
       case 0x22:
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS CN: %*.s", (int) tls_valsz, (char *) tls_val);
-        add_tlv_session_note("mod_proxy_protocol.tls.common-name", tlv_val,
-          tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.common-name", tls_val,
+          tls_valsz);
         break;
 
       /* TLS cipher */
       case 0x23:
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS cipher: %.*s", (int) tls_valsz, (char *) tls_val);
-        add_tlv_session_note("mod_proxy_protocol.tls.cipher", tlv_val,
-          tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.cipher", tls_val,
+          tls_valsz);
         break;
 
       /* TLS signature algorithm */
@@ -741,8 +745,8 @@ static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS signature algorithm: %.*s", (int) tls_valsz,
           (char *) tls_val);
-        add_tlv_session_note("mod_proxy_protocol.tls.signature-algo", tlv_val,
-          tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.signature-algo", tls_val,
+          tls_valsz);
         break;
 
       /* TLS key algorithm */
@@ -750,14 +754,17 @@ static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
         pr_trace_msg(trace_channel, 19,
           "TLS TLV: TLS key algorithm: %.*s", (int) tls_valsz,
           (char *) tls_val);
-        add_tlv_session_note("mod_proxy_protocol.tls.key-algo", tlv_val,
-          tlv_valsz);
+        add_tlv_session_note("mod_proxy_protocol.tls.key-algo", tls_val,
+          tls_valsz);
         break;
 
       default:
         pr_trace_msg(trace_channel, 3,
           "unsupported TLS TLV: %0x", tls_type);
     }
+
+    /* Don't forget to advance ptr, for any more encapsulated TLVs. */
+    ptr += tls_valsz;
   }
 
   return 0;
