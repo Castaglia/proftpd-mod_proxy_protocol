@@ -270,6 +270,20 @@ you need to use:
 in the same virtual host section in which the <code>ProxyProtocolEngine</code>
 directive appears.
 
+<p><a name="SessionNotes">
+<b>Session Notes</b><br>
+The <code>mod_proxy_protocol</code> module may provide the following <em>session notes</em> for <i>e.g.</i> PROXY protocol V2 Type-Length-Value (TLVs) as well:
+<ul>
+  <li><code>mod_proxy_protocol.alpn</code>
+  <li><code>mod_proxy_protocol.authority</code>
+  <li><code>mod_proxy_protocol.tls.cipher</code>
+  <li><code>mod_proxy_protocol.tls.version</code>
+  <li><code>mod_proxy_protocol.unique-id</code>
+</ul>
+These note variables are intended for informational purposes, <i>e.g.</i>
+<code>ExtendedLog</code> or <code>SQLLog</code> directives via the
+<code>%{note:...}</code> syntax.
+
 <p>
 <hr>
 <h2><a name="Installation">Installation</a></h2>
