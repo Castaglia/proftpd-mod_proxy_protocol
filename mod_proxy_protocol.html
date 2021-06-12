@@ -46,6 +46,7 @@ questions, concerns, or suggestions regarding this module.
 <h2>Directives</h2>
 <ul>
   <li><a href="#ProxyProtocolEngine">ProxyProtocolEngine</a>
+  <li><a href="#ProxyProtocolIgnore">ProxyProtocolIgnore</a>
   <li><a href="#ProxyProtocolOptions">ProxyProtocolOptions</a>
   <li><a href="#ProxyProtocolTimeout">ProxyProtocolTimeout</a>
   <li><a href="#ProxyProtocolVersion">ProxyProtocolVersion</a>
@@ -64,6 +65,42 @@ questions, concerns, or suggestions regarding this module.
 The <code>ProxyProtocolEngine</code> directive enables the expectation
 and handling of protocols which provide information on proxied connections;
 support for these protocols is provided by <code>mod_proxy_protocol</code>.
+
+<p>
+<hr>
+<h2><a name="ProxyProtocolIgnore">ProxyProtocolIgnore</a></h2>
+<strong>Syntax:</strong> ProxyProtocolIgnore <em>on|off</em><br>
+<strong>Default:</strong> off<br>
+<strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>
+<strong>Module:</strong> mod_proxy_protocol<br>
+<strong>Compatibility:</strong> 1.3.5rc4 and later
+
+<p>
+The <code>ProxyProtocolIgnore</code> directive determines whether the
+<code>mod_proxy_protocol</code> module will <em>use</em> the information it
+reads, in the PROXY protocol data that may be sent by a client.
+
+<p>
+This is useful for cases where clients may be sending/using the PROXY protocol,
+but you may not want <code>mod_proxy_protocol</code> to use the data from some
+clients.  For example:
+<pre>
+  &lt;Class untrusted-senders&gt;
+    From 1.2.3.4
+    From 5.6.7.8
+  &lt;/Class&gt;
+
+  &lt;IfModule mod_proxy_protocol.c&gt;
+    # We always to read PROXY protocol headers from clients...
+    ProxyProtocolEngine on
+
+    # ...but we don't always trust the senders
+    &lt;IfClass untrusted-senders&gt;
+      ProxyProtocolIgnore on
+    &lt;/IfClass&gt;
+  &lt;/IfModule&gt;
+</pre>
+
 
 <p>
 <hr>
