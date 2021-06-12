@@ -30,7 +30,7 @@
 # include <sys/uio.h>
 #endif /* HAVE_SYS_UIO_H */
 
-#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.5"
+#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.4"
 
 /* Make sure the version of proftpd is as necessary. */
 #if PROFTPD_VERSION_NUMBER < 0x0001030507
