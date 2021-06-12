@@ -1253,6 +1253,26 @@ MODRET set_proxyprotocolengine(cmd_rec *cmd) {
   return PR_HANDLED(cmd);
 }
 
+/* usage: ProxyProtocolIgnore on|off */
+MODRET set_proxyprotocolignore(cmd_rec *cmd) {
+  int ignore = 0;
+  config_rec *c;
+
+  CHECK_ARGS(cmd, 1);
+  CHECK_CONF(cmd, CONF_ROOT|CONF_VIRTUAL|CONF_GLOBAL);
+
+  ignore = get_boolean(cmd, 1);
+  if (ignore == -1) {
+    CONF_ERROR(cmd, "expected Boolean parameter");
+  }
+
+  c = add_config_param(cmd->argv[0], 1, NULL);
+  c->argv[0] = pcalloc(c->pool, sizeof(int));
+  *((int *) c->argv[0]) = ignore;
+
+  return PR_HANDLED(cmd);
+}
+
 /* usage: ProxyProtocolOptions opt1 ... */
 MODRET set_proxyprotocoloptions(cmd_rec *cmd) {
   register unsigned int i;
@@ -1334,7 +1354,7 @@ MODRET set_proxyprotocolversion(cmd_rec *cmd) {
 
 static int proxy_protocol_sess_init(void) {
   config_rec *c;
-  int engine = 0, res = 0, timerno = -1, xerrno;
+  int engine = 0, ignore = FALSE, res = 0, timerno = -1, xerrno;
   const pr_netaddr_t *proxied_src_addr = NULL, *proxied_dst_addr = NULL;
   unsigned int proxied_src_port = 0, proxied_dst_port = 0;
   const char *remote_ip = NULL, *remote_name = NULL;
@@ -1347,6 +1367,12 @@ static int proxy_protocol_sess_init(void) {
 
   if (engine == FALSE) {
     return 0;
+  }
+
+  /* ProxyProtocolIgnore */
+  c = find_config(main_server->conf, CONF_PARAM, "ProxyProtocolIgnore", FALSE);
+  if (c != NULL) {
+    ignore = *((int *) c->argv[0]);
   }
 
   /* ProxyProtocolOptions */
@@ -1417,6 +1443,13 @@ static int proxy_protocol_sess_init(void) {
 
     errno = EPERM;
     return -1;
+  }
+
+  if (ignore == TRUE) {
+    pr_log_debug(DEBUG10, MOD_PROXY_PROTOCOL_VERSION
+      ": ProxyProtocolIgnore is in effect, ignoring proxied source "
+      "address '%s'", pr_netaddr_get_ipstr(proxied_src_addr));
+    return 0;
   }
 
   if (proxied_src_addr != NULL) {
@@ -1539,6 +1572,7 @@ static int proxy_protocol_sess_init(void) {
 
 static conftable proxy_protocol_conftab[] = {
   { "ProxyProtocolEngine",	set_proxyprotocolengine,	NULL },
+  { "ProxyProtocolIgnore",	set_proxyprotocolignore,	NULL },
   { "ProxyProtocolOptions",	set_proxyprotocoloptions,	NULL },
   { "ProxyProtocolTimeout",	set_proxyprotocoltimeout,	NULL },
   { "ProxyProtocolVersion",	set_proxyprotocolversion,	NULL },
