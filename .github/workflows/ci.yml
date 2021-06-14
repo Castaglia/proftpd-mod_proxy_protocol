@@ -92,3 +92,9 @@ jobs:
         run: |
           cd proftpd
           sudo make install
+
+      - name: Check HTML docs
+        run: |
+          cd proftpd-mod_proxy_protocol
+          echo "Processing mod_proxy_protocol.html"
+          tidy -errors -omit -q mod_proxy_protocol.html
