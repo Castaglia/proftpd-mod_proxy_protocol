@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 <head>
 <title>ProFTPD module mod_proxy_protocol</title>
@@ -54,7 +55,7 @@ questions, concerns, or suggestions regarding this module.
 
 <p>
 <hr>
-<h2><a name="ProxyProtocolEngine">ProxyProtocolEngine</a></h2>
+<h3><a name="ProxyProtocolEngine">ProxyProtocolEngine</a></h3>
 <strong>Syntax:</strong> ProxyProtocolEngine <em>on|off</em><br>
 <strong>Default:</strong> None<br>
 <strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>
@@ -68,7 +69,7 @@ support for these protocols is provided by <code>mod_proxy_protocol</code>.
 
 <p>
 <hr>
-<h2><a name="ProxyProtocolIgnore">ProxyProtocolIgnore</a></h2>
+<h3><a name="ProxyProtocolIgnore">ProxyProtocolIgnore</a></h3>
 <strong>Syntax:</strong> ProxyProtocolIgnore <em>on|off</em><br>
 <strong>Default:</strong> off<br>
 <strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>
@@ -101,10 +102,9 @@ clients.  For example:
   &lt;/IfModule&gt;
 </pre>
 
-
 <p>
 <hr>
-<h2><a name="ProxyProtocolOptions">ProxyProtocolOptions</a></h3>
+<h3><a name="ProxyProtocolOptions">ProxyProtocolOptions</a></h3>
 <strong>Syntax:</strong> ProxyProtocolOptions <em>opt1 ...</em><br>
 <strong>Default:</strong> None<br>
 <strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>
@@ -137,7 +137,7 @@ The currently implemented options are:
 
 <p>
 <hr>
-<h2><a name="ProxyProtocolTimeout">ProxyProtocolTimeout</a></h2>
+<h3><a name="ProxyProtocolTimeout">ProxyProtocolTimeout</a></h3>
 <strong>Syntax:</strong> ProxyProtocolTimeout <em>seconds</em><br>
 <strong>Default:</strong> 3sec<br>
 <strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>
@@ -153,7 +153,7 @@ is closed.
 
 <p>
 <hr>
-<h2><a name="ProxyProtocolVersion">ProxyProtocolVersion</a></h2>
+<h3><a name="ProxyProtocolVersion">ProxyProtocolVersion</a></h3>
 <strong>Syntax:</strong> ProxyProtocolVersion <em>protocolVersion</em><br>
 <strong>Default:</strong> haproxyV1<br>
 <strong>Context:</strong> server config, <code>&lt;VirtualHost&gt;</code>, <code>&lt;Global&gt;</code><br>

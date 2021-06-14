@@ -97,4 +97,4 @@ jobs:
         run: |
           cd proftpd-mod_proxy_protocol
           echo "Processing mod_proxy_protocol.html"
-          tidy -errors -omit -q mod_proxy_protocol.html
+          tidy -errors -omit -q mod_proxy_protocol.html | exit 0
