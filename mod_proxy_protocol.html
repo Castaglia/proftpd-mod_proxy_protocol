@@ -263,6 +263,9 @@ this:
     &lt;IfModule mod_proxy_protocol.c&gt;
       # Enable PROXY protocol support for clients in this class
       ProxyProtocolEngine on
+
+      # Necessary to allow data transfers from this class
+      AllowForeignAddress expect-proxy-protocol
     &lt;/IfModule&gt;
   &lt;/IfClass&gt;
 </pre>
@@ -306,6 +309,17 @@ you need to use:
 </pre>
 in the same virtual host section in which the <code>ProxyProtocolEngine</code>
 directive appears.
+
+<p>
+A more secure configuration for <code>AllowForeignAddress</code> is possible
+when you use the <code>&lt;Class&gt;</code> and <code>&lt;IfClass&gt;</code>
+configurations, where you can limit the scope of
+<code>AllowForeignAddress</code> to just that class, using:
+<pre>
+  # Allow foreign addresses, but only from the "expect-proxy-protocol" class
+  AllowForeignAddress expect-proxy-protocol
+</pre>
+rather than allowing <b>any</b> IP address to connect to the data sockets.
 
 <p><a name="SessionNotes">
 <b>Session Notes</b><br>
