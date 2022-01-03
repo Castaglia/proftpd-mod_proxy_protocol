@@ -641,7 +641,7 @@ static void add_tlv_session_note(const char *key, const char *tlv_val,
   memcpy(val, tlv_val, tlv_valsz);
 
   pr_trace_msg(trace_channel, 17,
-    "adding session note: %s = %s", key, val);
+    "adding session note: %s = '%s'", key, (char *) val);
   (void) pr_table_add(session.notes, key, val, valsz);
 }
 
