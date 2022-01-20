@@ -22,11 +22,33 @@ my $TESTS = {
     test_class => [qw(forking mod_proxy_protocol mod_tls)],
   },
 
+  # NOTE: Beware of module load order; this requires that mod_proxy_protocol
+  # be loaded AFTER mod_tls, so that the mod_proxy_protocol init handlers
+  # run BEFORE mod_tls.
   proxy_protocol_tls_login_with_proxy_useimplicitssl => {
     order => ++$order,
-    test_class => [qw(forking mod_proxy_protocol mod_tls)],
+    test_class => [qw(forking inprogress mod_proxy_protocol mod_tls)],
   },
 
+  proxy_protocol_tls_without_proxy_v1_bytes => {
+    order => ++$order,
+    test_class => [qw(bug forking mod_proxy_protocol)],
+  },
+
+  proxy_protocol_tls_without_proxy_v2_bytes => {
+    order => ++$order,
+    test_class => [qw(bug forking mod_proxy_protocol)],
+  },
+
+  proxy_protocol_starttls_without_proxy_v1_bytes => {
+    order => ++$order,
+    test_class => [qw(bug forking mod_proxy_protocol)],
+  },
+
+  proxy_protocol_starttls_without_proxy_v2_bytes => {
+    order => ++$order,
+    test_class => [qw(bug forking mod_proxy_protocol)],
+  },
 };
 
 sub new {
@@ -57,10 +79,7 @@ sub list_tests {
     }
   }
 
-#  return testsuite_get_runnable_tests($TESTS);
-  return qw(
-    proxy_protocol_tls_login_with_proxy_useimplicitssl
-  );
+  return testsuite_get_runnable_tests($TESTS);
 }
 
 sub proxy_protocol_tls_login_with_proxy {
@@ -80,6 +99,7 @@ sub proxy_protocol_tls_login_with_proxy {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -132,7 +152,12 @@ sub proxy_protocol_tls_login_with_proxy {
 
       my $ssl_opts = {
         SSL_version => 'SSLv23',
+        SSL_ca_file => $ca_file,
       };
+
+      if ($ENV{TEST_VERBOSE}) {
+        $ssl_opts->{Debug} = 2;
+      }
 
       my $ssl_client = IO::Socket::SSL->start_SSL($client, %$ssl_opts);
       unless ($ssl_client) {
@@ -156,7 +181,6 @@ sub proxy_protocol_tls_login_with_proxy {
         die($client->message);
       }
     };
-
     if ($@) {
       $ex = $@;
     }
@@ -176,7 +200,6 @@ sub proxy_protocol_tls_login_with_proxy {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
@@ -194,9 +217,12 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
     PidFile => $setup->{pid_file},
     ScoreboardFile => $setup->{scoreboard_file},
     SystemLog => $setup->{log_file},
+    TraceLog => $setup->{log_file},
+    Trace => 'proxy_protocol:20 tls:30',
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -210,11 +236,10 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
       'mod_tls.c' => {
         TLSEngine => 'on',
         TLSLog => $setup->{log_file},
-        TLSProtocol => 'SSLv3 TLSv1',
         TLSRequired => 'on',
         TLSRSACertificateFile => $server_cert_file,
         TLSCACertificateFile => $ca_file,
-        TLSOptions => 'UseImplicitSSL',
+        TLSOptions => 'UseImplicitSSL EnableDiags',
       },
     },
   };
@@ -246,7 +271,12 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
 
       my $ssl_opts = {
         SSL_version => 'SSLv23',
+        SSL_ca_file => $ca_file,
       };
+
+      if ($ENV{TEST_VERBOSE}) {
+        $ssl_opts->{Debug} = 2;
+      }
 
       my $ssl_client = IO::Socket::SSL->start_SSL($client, %$ssl_opts);
       unless ($ssl_client) {
@@ -275,7 +305,6 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
         die($client->message);
       }
     };
-
     if ($@) {
       $ex = $@;
     }
@@ -295,7 +324,346 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
 
   # Stop server
   server_stop($setup->{pid_file});
+  $self->assert_child_ok($pid);
 
+  test_cleanup($setup->{log_file}, $ex);
+}
+
+sub proxy_protocol_tls_without_proxy_v1_bytes {
+  my $self = shift;
+  my $tmpdir = $self->{tmpdir};
+  my $setup = test_setup($tmpdir, 'proxy_protocol');
+
+  my $config = {
+    PidFile => $setup->{pid_file},
+    ScoreboardFile => $setup->{scoreboard_file},
+    SystemLog => $setup->{log_file},
+    TraceLog => $setup->{log_file},
+    Trace => 'proxy_protocol:20',
+
+    AuthUserFile => $setup->{auth_user_file},
+    AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
+
+    IfModules => {
+      'mod_delay.c' => {
+        DelayEngine => 'off',
+      },
+
+      'mod_proxy_protocol.c' => {
+        ProxyProtocolEngine => 'on',
+        ProxyProtocolVersion => 'haproxyV1',
+      },
+    },
+  };
+
+  my ($port, $config_user, $config_group) = config_write($setup->{config_file},
+    $config);
+
+  # Open pipes, for use between the parent and child processes.  Specifically,
+  # the child will indicate when it's done with its test by writing a message
+  # to the parent.
+  my ($rfh, $wfh);
+  unless (pipe($rfh, $wfh)) {
+    die("Can't open pipe: $!");
+  }
+
+  my $ex;
+
+  require IO::Socket::SSL;
+
+  # Fork child
+  $self->handle_sigchld();
+  defined(my $pid = fork()) or die("Can't fork: $!");
+  if ($pid) {
+    eval {
+      sleep(2);
+
+      my $ssl_client = IO::Socket::SSL->new(
+        PeerHost => '127.0.0.1',
+        PeerPort => $port,
+      );
+      if ($ssl_client) {
+        die("TLS handshake succeeded unexpectedly");
+      }
+    };
+    if ($@) {
+      $ex = $@;
+    }
+
+    $wfh->print("done\n");
+    $wfh->flush();
+
+  } else {
+    eval { server_wait($setup->{config_file}, $rfh, 10) };
+    if ($@) {
+      warn($@);
+      exit 1;
+    }
+
+    exit 0;
+  }
+
+  # Stop server
+  server_stop($setup->{pid_file});
+  $self->assert_child_ok($pid);
+
+  test_cleanup($setup->{log_file}, $ex);
+}
+
+sub proxy_protocol_tls_without_proxy_v2_bytes {
+  my $self = shift;
+  my $tmpdir = $self->{tmpdir};
+  my $setup = test_setup($tmpdir, 'proxy_protocol');
+
+  my $config = {
+    PidFile => $setup->{pid_file},
+    ScoreboardFile => $setup->{scoreboard_file},
+    SystemLog => $setup->{log_file},
+    TraceLog => $setup->{log_file},
+    Trace => 'proxy_protocol:20',
+
+    AuthUserFile => $setup->{auth_user_file},
+    AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
+
+    IfModules => {
+      'mod_delay.c' => {
+        DelayEngine => 'off',
+      },
+
+      'mod_proxy_protocol.c' => {
+        ProxyProtocolEngine => 'on',
+        ProxyProtocolVersion => 'haproxyV2',
+      },
+    },
+  };
+
+  my ($port, $config_user, $config_group) = config_write($setup->{config_file},
+    $config);
+
+  # Open pipes, for use between the parent and child processes.  Specifically,
+  # the child will indicate when it's done with its test by writing a message
+  # to the parent.
+  my ($rfh, $wfh);
+  unless (pipe($rfh, $wfh)) {
+    die("Can't open pipe: $!");
+  }
+
+  my $ex;
+
+  require IO::Socket::SSL;
+
+  # Fork child
+  $self->handle_sigchld();
+  defined(my $pid = fork()) or die("Can't fork: $!");
+  if ($pid) {
+    eval {
+      sleep(2);
+
+      my $ssl_client = IO::Socket::SSL->new(
+        PeerHost => '127.0.0.1',
+        PeerPort => $port,
+      );
+      if ($ssl_client) {
+        die("TLS handshake succeeded unexpectedly");
+      }
+    };
+    if ($@) {
+      $ex = $@;
+    }
+
+    $wfh->print("done\n");
+    $wfh->flush();
+
+  } else {
+    eval { server_wait($setup->{config_file}, $rfh, 10) };
+    if ($@) {
+      warn($@);
+      exit 1;
+    }
+
+    exit 0;
+  }
+
+  # Stop server
+  server_stop($setup->{pid_file});
+  $self->assert_child_ok($pid);
+
+  test_cleanup($setup->{log_file}, $ex);
+}
+
+sub proxy_protocol_starttls_without_proxy_v1_bytes {
+  my $self = shift;
+  my $tmpdir = $self->{tmpdir};
+  my $setup = test_setup($tmpdir, 'proxy_protocol');
+
+  my $config = {
+    PidFile => $setup->{pid_file},
+    ScoreboardFile => $setup->{scoreboard_file},
+    SystemLog => $setup->{log_file},
+    TraceLog => $setup->{log_file},
+    Trace => 'proxy_protocol:20',
+
+    AuthUserFile => $setup->{auth_user_file},
+    AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
+
+    IfModules => {
+      'mod_delay.c' => {
+        DelayEngine => 'off',
+      },
+
+      'mod_proxy_protocol.c' => {
+        ProxyProtocolEngine => 'on',
+        ProxyProtocolVersion => 'haproxyV1',
+      },
+    },
+  };
+
+  my ($port, $config_user, $config_group) = config_write($setup->{config_file},
+    $config);
+
+  # Open pipes, for use between the parent and child processes.  Specifically,
+  # the child will indicate when it's done with its test by writing a message
+  # to the parent.
+  my ($rfh, $wfh);
+  unless (pipe($rfh, $wfh)) {
+    die("Can't open pipe: $!");
+  }
+
+  my $ex;
+
+  require Net::FTPSSL;
+
+  # Fork child
+  $self->handle_sigchld();
+  defined(my $pid = fork()) or die("Can't fork: $!");
+  if ($pid) {
+    eval {
+      sleep(2);
+
+      my $ssl_opts = {
+        Encryption => 'E',
+        Port => $port,
+      };
+
+      if ($ENV{TEST_VERBOSE}) {
+        $ssl_opts->{Debug} = 2;
+      }
+
+      my $client = Net::FTPSSL->new('127.0.0.1', %$ssl_opts);
+      if ($client) {
+        die("STARTTLS FTP handshake succeeded unexpectedly");
+      }
+    };
+    if ($@) {
+      $ex = $@;
+    }
+
+    $wfh->print("done\n");
+    $wfh->flush();
+
+  } else {
+    eval { server_wait($setup->{config_file}, $rfh, 10) };
+    if ($@) {
+      warn($@);
+      exit 1;
+    }
+
+    exit 0;
+  }
+
+  # Stop server
+  server_stop($setup->{pid_file});
+  $self->assert_child_ok($pid);
+
+  test_cleanup($setup->{log_file}, $ex);
+}
+
+sub proxy_protocol_starttls_without_proxy_v2_bytes {
+  my $self = shift;
+  my $tmpdir = $self->{tmpdir};
+  my $setup = test_setup($tmpdir, 'proxy_protocol');
+
+  my $config = {
+    PidFile => $setup->{pid_file},
+    ScoreboardFile => $setup->{scoreboard_file},
+    SystemLog => $setup->{log_file},
+    TraceLog => $setup->{log_file},
+    Trace => 'proxy_protocol:20',
+
+    AuthUserFile => $setup->{auth_user_file},
+    AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
+
+    IfModules => {
+      'mod_delay.c' => {
+        DelayEngine => 'off',
+      },
+
+      'mod_proxy_protocol.c' => {
+        ProxyProtocolEngine => 'on',
+        ProxyProtocolVersion => 'haproxyV2',
+      },
+    },
+  };
+
+  my ($port, $config_user, $config_group) = config_write($setup->{config_file},
+    $config);
+
+  # Open pipes, for use between the parent and child processes.  Specifically,
+  # the child will indicate when it's done with its test by writing a message
+  # to the parent.
+  my ($rfh, $wfh);
+  unless (pipe($rfh, $wfh)) {
+    die("Can't open pipe: $!");
+  }
+
+  my $ex;
+
+  require Net::FTPSSL;
+
+  # Fork child
+  $self->handle_sigchld();
+  defined(my $pid = fork()) or die("Can't fork: $!");
+  if ($pid) {
+    eval {
+      sleep(2);
+
+      my $ssl_opts = {
+        Encryption => 'E',
+        Port => $port,
+      };
+
+      if ($ENV{TEST_VERBOSE}) {
+        $ssl_opts->{Debug} = 2;
+      }
+
+      my $client = Net::FTPSSL->new('127.0.0.1', %$ssl_opts);
+      if ($client) {
+        die("STARTTLS FTP handshake succeeded unexpectedly");
+      }
+    };
+    if ($@) {
+      $ex = $@;
+    }
+
+    $wfh->print("done\n");
+    $wfh->flush();
+
+  } else {
+    eval { server_wait($setup->{config_file}, $rfh, 10) };
+    if ($@) {
+      warn($@);
+      exit 1;
+    }
+
+    exit 0;
+  }
+
+  # Stop server
+  server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
   test_cleanup($setup->{log_file}, $ex);
