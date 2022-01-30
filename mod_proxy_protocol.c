@@ -1,6 +1,6 @@
 /*
  * ProFTPD - mod_proxy_protocol
- * Copyright (c) 2013-2021 TJ Saunders
+ * Copyright (c) 2013-2022 TJ Saunders
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
  * source distribution.
  */
 
-
 #include "conf.h"
 #include "privs.h"
 
@@ -30,7 +29,7 @@
 # include <sys/uio.h>
 #endif /* HAVE_SYS_UIO_H */
 
-#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.4"
+#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.5"
 
 /* Make sure the version of proftpd is as necessary. */
 #if PROFTPD_VERSION_NUMBER < 0x0001030507
@@ -277,6 +276,31 @@ static int readv_sock(int sockfd, const struct iovec *iov, int count) {
   return res;
 }
 
+static int is_tls_handshake(const unsigned char *buf, size_t buflen) {
+  /* We can't tell if it's a TLS handshake record without at least 3 bytes of
+   * data.
+   */
+  if (buflen < 3) {
+    return -1;
+  }
+
+  if (buf[0] == 22 &&
+      buf[1] == 3 &&
+      (buf[2] == 0 || buf[2] == 1)) {
+    /* SSLv3, TLSv1+ */
+    return 0;
+  }
+
+  if (buf[0] == 128 &&
+      buf[1] == 43 &&
+      buf[2] == 1) {
+    /* SSLv2 */
+    return 0;
+  }
+
+  return -1;
+}
+
 static unsigned int strtou(const char **str, const char *last) {
   const char *ptr = *str;
   unsigned int i = 0, j, k;
@@ -356,6 +380,15 @@ static int read_haproxy_v1(pool *p, conn_t *conn,
      */
     if (i == 6) {
       if (strncmp(ptr, "PROXY ", 6) != 0) {
+        /* Check for a common error, that of TLS handshake bytes instead of
+         * PROXY bytes, to provide for a better diagnostic/log message.
+         */
+        if (is_tls_handshake((const unsigned char *) ptr, i) == 0) {
+          pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+            ": received unexpected TLS handshake bytes from %s",
+            pr_netaddr_get_ipstr(conn->remote_addr));
+        }
+
         goto bad_proto;
       }
 
@@ -919,6 +952,16 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
   if (memcmp(v2_sig, haproxy_v2_sig, sizeof(haproxy_v2_sig)) != 0) {
     pr_trace_msg(trace_channel, 3,
       "invalid proxy protocol V2 signature, rejecting");
+
+    /* Check for a common error, that of TLS handshake bytes instead of
+     * PROXY bytes, to provide for a better diagnostic/log message.
+     */
+    if (is_tls_handshake(v2_sig, sizeof(v2_sig)) == 0) {
+      pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+        ": received unexpected TLS handshake bytes from %s",
+        pr_netaddr_get_ipstr(conn->remote_addr));
+    }
+
     errno = EINVAL;
     return -1;
   }
