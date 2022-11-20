@@ -29,7 +29,7 @@
 # include <sys/uio.h>
 #endif /* HAVE_SYS_UIO_H */
 
-#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.5"
+#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.6"
 
 /* Make sure the version of proftpd is as necessary. */
 #if PROFTPD_VERSION_NUMBER < 0x0001030507
@@ -255,21 +255,21 @@ static int readv_sock(int sockfd, const struct iovec *iov, int count) {
 
         return -1;
       }
-
-      /* If we read zero bytes here, treat it as an EOF and hang up on
-       * the uncommunicative client.
-       */
-
-      pr_trace_msg(trace_channel, 16, "%s",
-        "disconnecting client (received EOF)");
-      pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
-        ": disconnecting client (received EOF)");
-      pr_session_disconnect(&proxy_protocol_module,
-        PR_SESS_DISCONNECT_CLIENT_EOF, NULL);
-
-      errno = ENOENT;
-      return -1;
     }
+
+    /* If we read zero bytes here, treat it as an EOF and hang up on
+     * the uncommunicative client.
+     */
+
+    pr_trace_msg(trace_channel, 16, "%s",
+      "disconnecting client (received EOF)");
+    pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
+      ": disconnecting client (received EOF)");
+    pr_session_disconnect(&proxy_protocol_module,
+      PR_SESS_DISCONNECT_CLIENT_EOF, NULL);
+
+    errno = ENOENT;
+    return -1;
   }
 
   session.total_raw_in += res;
