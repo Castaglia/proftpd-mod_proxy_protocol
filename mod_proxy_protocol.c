@@ -25,7 +25,7 @@
 #include "conf.h"
 #include "privs.h"
 
-#ifdef HAVE_SYS_UIO_H
+#if defined(HAVE_SYS_UIO_H)
 # include <sys/uio.h>
 #endif /* HAVE_SYS_UIO_H */
 
@@ -147,13 +147,13 @@ static int read_sock(int sockfd, void *buf, size_t reqlen) {
          */
         if (xerrno == ECONNRESET ||
             xerrno == ECONNABORTED ||
-#ifdef ETIMEDOUT
+#if defined(ETIMEDOUT)
             xerrno == ETIMEDOUT ||
 #endif /* ETIMEDOUT */
-#ifdef ENOTCONN
+#if defined(ENOTCONN)
             xerrno == ENOTCONN ||
 #endif /* ENOTCONN */
-#ifdef ESHUTDOWN
+#if defined(ESHUTDOWN)
             xerrno == ESHUTDOWN ||
 #endif /* ESHUTDOWNN */
             xerrno == EPIPE) {
@@ -235,13 +235,13 @@ static int readv_sock(int sockfd, const struct iovec *iov, int count) {
        */
       if (xerrno == ECONNRESET ||
           xerrno == ECONNABORTED ||
-#ifdef ETIMEDOUT
+#if defined(ETIMEDOUT)
           xerrno == ETIMEDOUT ||
 #endif /* ETIMEDOUT */
-#ifdef ENOTCONN
+#if defined(ENOTCONN)
           xerrno == ENOTCONN ||
 #endif /* ENOTCONN */
-#ifdef ESHUTDOWN
+#if defined(ESHUTDOWN)
           xerrno == ESHUTDOWN ||
 #endif /* ESHUTDOWNN */
           xerrno == EPIPE) {
@@ -438,7 +438,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn,
   if (strncmp(ptr, "TCP4 ", 5) == 0) {
     have_tcp4 = TRUE;
 
-#ifdef PR_USE_IPV6
+#if defined(PR_USE_IPV6)
   } else if (strncmp(ptr, "TCP6 ", 5) == 0) {
     if (pr_netaddr_use_ipv6()) {
       have_tcp6 = TRUE;
@@ -543,7 +543,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn,
         return -1;
       }
 
-#ifdef PR_USE_IPV6
+#if defined(PR_USE_IPV6)
     } else {
       if (pr_netaddr_get_family(src_addr) != AF_INET6) {
         pr_log_debug(DEBUG8, MOD_PROXY_PROTOCOL_VERSION
@@ -1063,7 +1063,7 @@ static int read_haproxy_v2(pool *p, conn_t *conn,
               "of TLV data", (unsigned long) tlv_len);
           }
 
-#ifdef PR_USE_IPV6
+#if defined(PR_USE_IPV6)
           ipv6[0].iov_base = (void *) &src_ipv6;
           ipv6[0].iov_len = sizeof(src_ipv6);
           ipv6[1].iov_base = (void *) &dst_ipv6;
@@ -1530,7 +1530,7 @@ static int proxy_protocol_sess_init(void) {
       server_rec *proxied_server = NULL;
 
       /* Add "mod_proxy_protocol.proxied_server_addr" session note.  With, or
-       *   without, port?
+       * without, port?
        */
 
       if (pr_netaddr_cmp(session.c->local_addr, proxied_dst_addr) != 0 ||
