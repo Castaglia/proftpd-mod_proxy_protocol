@@ -29,7 +29,7 @@
 # include <sys/uio.h>
 #endif /* HAVE_SYS_UIO_H */
 
-#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.6"
+#define MOD_PROXY_PROTOCOL_VERSION	"mod_proxy_protocol/0.6.1"
 
 /* Make sure the version of proftpd is as necessary. */
 #if PROFTPD_VERSION_NUMBER < 0x0001030507
@@ -680,6 +680,129 @@ static void add_tlv_session_note(const char *key, const char *tlv_val,
 
 static const char haproxy_v2_sig[12] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
 
+/* See: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#proxy-protocol
+ */
+static int read_haproxy_v2_aws_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
+  unsigned char *ptr;
+  size_t len;
+
+  ptr = tlv_val;
+  len = tlv_valsz;
+
+  while (len > 0) {
+    uint8_t aws_type;
+    uint16_t aws_len;
+    void *aws_val;
+    size_t aws_valsz;
+
+    pr_signals_handle();
+
+    memcpy(&aws_type, ptr, sizeof(aws_type));
+    ptr += sizeof(aws_type);
+    len -= sizeof(aws_type);
+
+    memcpy(&aws_len, ptr, sizeof(aws_len));
+    ptr += sizeof(aws_len);
+    len -= sizeof(aws_len);
+
+    aws_valsz = ntohs(aws_len);
+    aws_val = ptr;
+    len -= aws_valsz;
+
+    switch (aws_type) {
+      /* VPC Endpoint ID */
+      case 0x01:
+        pr_trace_msg(trace_channel, 19,
+          "AWS TLV: VPC Endpoint ID: %.*s", (int) aws_valsz, (char *) aws_val);
+        add_tlv_session_note("mod_proxy_protocol.aws.vpc-endpoint-id", aws_val,
+          aws_valsz);
+        break;
+
+      default:
+        pr_trace_msg(trace_channel, 3,
+          "unsupported AWS TLV: %0x", aws_type);
+    }
+
+    /* Don't forget to advance ptr, for any more encapsulated TLVs. */
+    ptr += aws_valsz;
+  }
+
+  return 0;
+}
+
+/* See: https://github.com/MicrosoftDocs/azure-docs/blob/main/articles/private-link/private-link-service-overview.md#getting-connection-information-using-tcp-proxy-v2
+ */
+static int read_haproxy_v2_azure_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
+  unsigned char *ptr;
+  size_t len;
+
+  ptr = tlv_val;
+  len = tlv_valsz;
+
+  while (len > 0) {
+    uint8_t azure_type;
+    uint16_t azure_len;
+    void *azure_val;
+    size_t azure_valsz;
+
+    pr_signals_handle();
+
+    memcpy(&azure_type, ptr, sizeof(azure_type));
+    ptr += sizeof(azure_type);
+    len -= sizeof(azure_type);
+
+    memcpy(&azure_len, ptr, sizeof(azure_len));
+    ptr += sizeof(azure_len);
+    len -= sizeof(azure_len);
+
+    azure_valsz = ntohs(azure_len);
+    azure_val = ptr;
+    len -= azure_valsz;
+
+    switch (azure_type) {
+      /* Private Endpoint LinkID */
+      case 0x01: {
+        if (azure_valsz == 4) {
+          uint32_t link_id;
+          char *link_id_text;
+          size_t link_id_textsz;
+
+          /* Since the LinkID value is little-endian (per docs), we need not
+           * worry about converting its encoding.
+           */
+          memcpy(&link_id, azure_val, azure_valsz);
+
+          pr_trace_msg(trace_channel, 19,
+            "Azure TLV: Private Endpoint LinkID: %lu", (unsigned long) link_id);
+
+          link_id_textsz = 32;
+          link_id_text = pcalloc(p, link_id_textsz);
+          (void) snprintf(link_id_text, link_id_textsz-1, "%u", link_id);
+
+          add_tlv_session_note("mod_proxy_protocol.azure.private-endpoint-linkid",
+            link_id_text, strlen(link_id_text)-1);
+
+        } else {
+          pr_trace_msg(trace_channel, 1,
+            "Azure TLV: Private Endpoint LinkID: invalid value length (%u), "
+            "expected 4, ignoring value", (unsigned int) azure_valsz);
+        }
+
+        break;
+      }
+
+      default:
+        pr_trace_msg(trace_channel, 3,
+          "unsupported Azure TLV: %0x", azure_type);
+    }
+
+    /* Don't forget to advance ptr, for any more encapsulated TLVs. */
+    ptr += azure_valsz;
+  }
+
+  return 0;
+}
+
 /* The TLS TLV is convoluted enough to warrant its own special function. */
 static int read_haproxy_v2_tls_tlv(pool *p, void *tlv_val, size_t tlv_valsz) {
   uint8_t client;
@@ -907,6 +1030,26 @@ static int read_haproxy_v2_tlvs(pool *p, conn_t *conn, size_t len) {
         pr_trace_msg(trace_channel, 19,
           "received proxy protocol V2 Network Namespace: %.*s",
           (int) tlv_valsz, (char *) tlv_val);
+        break;
+
+      /* AWS custom TLVs */
+      case 0xEA:
+        pr_trace_msg(trace_channel, 19,
+          "received proxy protocol V2 AWS custom TLV: %.*s",
+          (int) tlv_valsz, (char *) tlv_val);
+        if (read_haproxy_v2_aws_tlv(p, tlv_val, tlv_valsz) < 0) {
+          return -1;
+        }
+        break;
+
+      /* Azure custom TLVs */
+      case 0xEE:
+        pr_trace_msg(trace_channel, 19,
+          "received proxy protocol V2 Azure custom TLV: %.*s",
+          (int) tlv_valsz, (char *) tlv_val);
+        if (read_haproxy_v2_azure_tlv(p, tlv_val, tlv_valsz) < 0) {
+          return -1;
+        }
         break;
 
       default:
