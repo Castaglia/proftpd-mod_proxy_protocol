@@ -1,0 +1,3 @@
+---
+paths:
+  - contrib/mod_proxy_protocol.c

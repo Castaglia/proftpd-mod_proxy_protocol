@@ -1,0 +1,75 @@
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '**/*.md'
+      - '**/doc/*'
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - '**/*.md'
+      - '**/doc/*'
+  schedule:
+    - cron: "13 8 * * 1"
+
+jobs:
+  analyze:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: true
+      matrix:
+        language:
+          - cpp
+
+    steps:
+      - name: Checkout ProFTPD
+        uses: actions/checkout@v3
+        with:
+          repository: proftpd/proftpd
+
+      - name: Checkout mod_proxy_protocol
+        uses: actions/checkout@v3
+        with:
+          path: proftpd-mod_proxy_protocol
+
+      - name: Install Packages
+        run: |
+          sudo apt-get update
+
+      - name: Prepare module
+        run: |
+          cp proftpd-mod_proxy_protocol/mod_proxy_protocol.c contrib/mod_proxy_protocol.c
+
+      - name: Configure
+        run: |
+          ./configure --with-modules=mod_proxy_protocol
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          config-file: proftpd-mod_proxy_protocol/.codeql.yml
+          queries: +security-and-quality
+          source-root: proftpd-mod_proxy_protocol
+
+      - name: Build
+        run: |
+          make
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{ matrix.language }}"
+          checkout_path: proftpd-mod_proxy_protocol
+          output: sarif-results
+          upload: true
