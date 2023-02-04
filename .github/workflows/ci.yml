@@ -26,7 +26,7 @@ jobs:
           git clone --depth 1 https://github.com/proftpd/proftpd.git proftpd
 
       - name: Checkout module source code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           path: proftpd-mod_proxy_protocol
 
