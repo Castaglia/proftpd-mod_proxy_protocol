@@ -524,7 +524,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn,
      * check for this, scan the given address fields for illegal (e.g.
      * alphabetic) characters, keeping in mind that IPv6 addresses can use
      * hex.
-     */ 
+     */
 
     if (have_tcp4 == TRUE) {
       if (pr_netaddr_get_family(src_addr) != AF_INET) {
@@ -649,7 +649,7 @@ static int read_haproxy_v1(pool *p, conn_t *conn,
     *proxied_dst_addr = dst_addr;
     *proxied_dst_port = dst_port;
   }
- 
+
   return 1;
 
 bad_proto:
@@ -1431,7 +1431,7 @@ MODRET set_proxyprotocolengine(cmd_rec *cmd) {
   if (engine == -1) {
     CONF_ERROR(cmd, "expected Boolean parameter");
   }
- 
+
   c = add_config_param(cmd->argv[0], 1, NULL);
   c->argv[0] = pcalloc(c->pool, sizeof(int));
   *((int *) c->argv[0]) = engine;
@@ -1749,7 +1749,7 @@ static int proxy_protocol_sess_init(void) {
         ": session requested from proxied client in unknown class");
     }
   }
- 
+
   return 0;
 }
 

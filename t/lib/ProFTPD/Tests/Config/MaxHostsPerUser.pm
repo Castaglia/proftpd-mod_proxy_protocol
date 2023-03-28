@@ -49,7 +49,7 @@ sub maxhostsperuser_one {
     SystemLog => $setup->{log_file},
 
     AuthUserFile => $setup->{auth_user_file},
-    AuthGroupFile => $setup->{auth_group_file}, 
+    AuthGroupFile => $setup->{auth_group_file},
 
     MaxHostsPerUser => $max_hosts,
 
