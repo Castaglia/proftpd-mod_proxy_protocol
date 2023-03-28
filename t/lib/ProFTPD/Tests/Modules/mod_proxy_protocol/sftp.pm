@@ -114,7 +114,7 @@ sub proxy_protocol_sftp_with_proxy {
       $client->send_proxy_raw('1.1.1.1', '2.2.2.2', 111, 222);
       my $banner = $client->getline();
       chomp($banner);
- 
+
       unless ($banner =~ /^SSH\-2\.0\-mod_sftp/) {
         die("Received unexpected banner from mod_sftp: '$banner'");
       }
