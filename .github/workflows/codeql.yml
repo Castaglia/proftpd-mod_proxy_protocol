@@ -55,7 +55,7 @@ jobs:
           ./configure --with-modules=mod_proxy_protocol
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           config-file: proftpd-mod_proxy_protocol/.codeql.yml
@@ -67,7 +67,7 @@ jobs:
           make
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
           checkout_path: proftpd-mod_proxy_protocol
