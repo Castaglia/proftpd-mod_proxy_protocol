@@ -217,7 +217,7 @@ is <i>required</i> in cases where you want to use both
 example, perhaps you want to use <code>mod_ifsession</code> to change the
 behavior of some module, <i>e.g.</i> <code>mod_ban</code>, based on the IP
 address of the original client.  This means that <code>mod_proxy_protocol</code>
-would need to hande the connection <i>first</i>, so that it can decode the
+would need to handle the connection <i>first</i>, so that it can decode the
 <code>PROXY</code> protocol and set the correct client IP address.
 <i>However</i>, the ProFTPD build system is hardcoded to ensure that the
 <code>mod_ifsession</code> will always be first -- <i>if</i> using static
@@ -346,7 +346,7 @@ To install <code>mod_proxy_protocol</code>, copy the
   <i>proftpd-dir</i>/contrib/
 </pre>
 after unpacking the latest proftpd-1.3.<i>x</i> source code.  For including
-<code>mod_proxy_protocol</code> as a staticly linked module:
+<code>mod_proxy_protocol</code> as a statically linked module:
 <pre>
   $ ./configure --with-modules=...:mod_proxy_protocol
 </pre>
@@ -416,7 +416,7 @@ and FTP data addresses/ports, and to <b>not</b> use <code>send-proxy-v2</code>
 <p>
 <hr>
 <font size=2><b><i>
-&copy; Copyright 2013-2022 TJ Saunders<br>
+&copy; Copyright 2013-2025 TJ Saunders<br>
  All Rights Reserved<br>
 </i></b></font>
 
