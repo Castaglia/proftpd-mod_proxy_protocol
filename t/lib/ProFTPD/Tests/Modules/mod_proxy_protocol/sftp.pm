@@ -7,6 +7,7 @@ use strict;
 use File::Path qw(mkpath);
 use File::Spec;
 use IO::Handle;
+use Net::Telnet;
 
 use ProFTPD::TestSuite::ProxiedFTP;
 use ProFTPD::TestSuite::Utils qw(:auth :config :running :test :testsuite);
@@ -21,11 +22,8 @@ my $TESTS = {
     test_class => [qw(forking mod_proxy_protocol mod_sftp)],
   },
 
-  proxy_protocol_sftp_without_proxy => {
-    order => ++$order,
-    test_class => [qw(forking mod_proxy_protocol mod_sftp)],
-  },
-
+  # TODO: Add test where PROXY protocol is NOT sent
+  # proxy_protocol_sftp_with_proxy
 };
 
 sub new {
@@ -33,10 +31,7 @@ sub new {
 }
 
 sub list_tests {
-#  return testsuite_get_runnable_tests($TESTS);
-  return qw(
-    proxy_protocol_sftp_with_proxy
-  );
+  return testsuite_get_runnable_tests($TESTS);
 }
 
 sub set_up {
@@ -71,6 +66,7 @@ sub proxy_protocol_sftp_with_proxy {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -86,6 +82,8 @@ sub proxy_protocol_sftp_with_proxy {
         "SFTPLog $setup->{log_file}",
         "SFTPHostKey $rsa_host_key",
         "SFTPHostKey $dsa_host_key",
+
+        "SFTPOptions PessimisticKexinit",
       ],
     },
   };
@@ -110,8 +108,14 @@ sub proxy_protocol_sftp_with_proxy {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port);
-      $client->send_proxy_raw('1.1.1.1', '2.2.2.2', 111, 222);
+      my $client = Net::Telnet->new(
+        Host => '127.0.0.1',
+        Port => $port,
+        Timeout => 3,
+        Errmode => 'return',
+      );
+      $client->put("PROXY TCP4 1.1.1.1 2.2.2.2 111 222\r\n");
+
       my $banner = $client->getline();
       chomp($banner);
 
@@ -119,9 +123,9 @@ sub proxy_protocol_sftp_with_proxy {
         die("Received unexpected banner from mod_sftp: '$banner'");
       }
 
-      print $client "SSH-2.0-ProFTPD_mod_proxy_protocol_sftp_Test\r\n";
+      $client->put("SSH-2.0-ProFTPD_mod_proxy_protocol_sftp_Test\r\n");
+      $client->close();
     };
-
     if ($@) {
       $ex = $@;
     }
@@ -130,7 +134,7 @@ sub proxy_protocol_sftp_with_proxy {
     $wfh->flush();
 
   } else {
-    eval { server_wait($setup->{config_file}, $rfh, 10) };
+    eval { server_wait($setup->{config_file}, $rfh) };
     if ($@) {
       warn($@);
       exit 1;
@@ -141,8 +145,35 @@ sub proxy_protocol_sftp_with_proxy {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
+
+  eval {
+    if (open(my $fh, "< $setup->{log_file}")) {
+      my $ok = 0;
+
+      while (my $line = <$fh>) {
+        chomp($line);
+
+        if ($ENV{TEST_VERBOSE}) {
+          print STDERR "# $line\n";
+        }
+
+        if ($line =~ /client \(1.1.1.1:111\) connected to server/) {
+          $ok = 1;
+          last;
+        }
+      }
+
+      close($fh);
+      $self->assert($ok, test_msg("Did not see expected SFTPLog message"));
+
+    } else {
+      die("Can't read $setup->{log_file}: $!");
+    }
+  };
+  if ($@) {
+    $ex = $@;
+  }
 
   test_cleanup($setup->{log_file}, $ex);
 }

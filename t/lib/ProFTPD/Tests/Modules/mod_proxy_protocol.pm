@@ -90,27 +90,27 @@ my $TESTS = {
 
   proxy_protocol_tcp4_with_ipv6_src_addr => {
     order => ++$order,
-    test_class => [qw(forking mod_proxy_protocol)],
+    test_class => [qw(feature_ipv6 forking mod_proxy_protocol)],
   },
 
   proxy_protocol_tcp4_with_ipv6_dst_addr => {
     order => ++$order,
-    test_class => [qw(forking mod_proxy_protocol)],
+    test_class => [qw(feature_ipv6 forking mod_proxy_protocol)],
   },
 
   proxy_protocol_tcp6_with_ipv4_src_addr => {
     order => ++$order,
-    test_class => [qw(forking mod_proxy_protocol)],
+    test_class => [qw(feature_ipv6 forking mod_proxy_protocol)],
   },
 
   proxy_protocol_tcp6_with_ipv4_dst_addr => {
     order => ++$order,
-    test_class => [qw(forking mod_proxy_protocol)],
+    test_class => [qw(feature_ipv6 forking mod_proxy_protocol)],
   },
 
   proxy_protocol_tcp6_with_useipv6_off => {
     order => ++$order,
-    test_class => [qw(forking mod_proxy_protocol)],
+    test_class => [qw(feature_ipv6 forking mod_proxy_protocol)],
   },
 
   proxy_protocol_matching_src_dst_info => {
@@ -175,6 +175,7 @@ sub proxy_protocol_login_with_proxy {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -251,6 +252,7 @@ sub proxy_protocol_login_without_proxy {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -332,6 +334,7 @@ sub proxy_protocol_config_denyclass {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -428,6 +431,7 @@ sub proxy_protocol_bad_start_of_line {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -505,6 +509,7 @@ sub proxy_protocol_bad_end_of_line {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -582,6 +587,7 @@ sub proxy_protocol_bad_proto {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -659,6 +665,7 @@ sub proxy_protocol_bad_src_addr {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -736,6 +743,7 @@ sub proxy_protocol_dns_src_addr {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -813,6 +821,7 @@ sub proxy_protocol_bad_dst_addr {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -890,6 +899,7 @@ sub proxy_protocol_dns_dst_addr {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -967,6 +977,7 @@ sub proxy_protocol_bad_src_port {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -1044,6 +1055,7 @@ sub proxy_protocol_bad_dst_port {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -1121,6 +1133,7 @@ sub proxy_protocol_too_large_src_port {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -1198,6 +1211,7 @@ sub proxy_protocol_too_large_dst_port {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -1275,6 +1289,8 @@ sub proxy_protocol_tcp4_with_ipv6_src_addr {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
+
     UseIPv6 => 'on',
 
     IfModules => {
@@ -1353,6 +1369,8 @@ sub proxy_protocol_tcp4_with_ipv6_dst_addr {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
+
     UseIPv6 => 'on',
 
     IfModules => {
@@ -1431,6 +1449,8 @@ sub proxy_protocol_tcp6_with_ipv4_src_addr {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
+
     UseIPv6 => 'on',
 
     IfModules => {
@@ -1509,6 +1529,8 @@ sub proxy_protocol_tcp6_with_ipv4_dst_addr {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
+
     UseIPv6 => 'on',
 
     IfModules => {
@@ -1587,6 +1609,8 @@ sub proxy_protocol_tcp6_with_useipv6_off {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
+
     UseIPv6 => 'off',
 
     IfModules => {
@@ -1665,6 +1689,7 @@ sub proxy_protocol_matching_src_dst_info {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -1742,6 +1767,7 @@ sub proxy_protocol_unknown_proto {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -1828,6 +1854,7 @@ sub proxy_protocol_active_transfer_with_proxy {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     # Note: If AllowForeignAddress is not allowed, then the PORT command
     # will fail with the following e.g. error being logged:
@@ -1928,6 +1955,7 @@ sub proxy_protocol_passive_transfer_with_proxy {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     # Note: If AllowForeignAddress is not allowed, then the data transfer
     # will fail with the following e.g. error being logged:
@@ -2029,6 +2057,7 @@ sub proxy_protocol_active_transfer_with_proxy_allowforeignaddress {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     # Note: If AllowForeignAddress is not allowed, then the PORT command
     # will fail with the following e.g. error being logged:
@@ -2134,6 +2163,7 @@ sub proxy_protocol_passive_transfer_with_proxy_allowforeignaddress {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     # Note: If AllowForeignAddress is not allowed, then the data transfer
     # will fail with the following e.g. error being logged:
@@ -2229,6 +2259,7 @@ sub proxy_protocol_login_using_proxied_server_address {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -2337,6 +2368,7 @@ sub proxy_protocol_login_no_matching_proxied_server_address {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
