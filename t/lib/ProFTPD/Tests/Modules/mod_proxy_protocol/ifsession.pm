@@ -70,6 +70,7 @@ sub proxy_protocol_ifsess_matching_class {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -159,6 +160,7 @@ sub proxy_protocol_ifsess_mismatched_class {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -255,6 +257,7 @@ sub proxy_protocol_ifsess_matching_user {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -349,6 +352,7 @@ sub proxy_protocol_ifsess_mismatched_user {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -444,6 +448,7 @@ sub proxy_protocol_config_ignore_ifsess_matching_class_issue2 {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -538,7 +543,7 @@ EOC
 
       close($fh);
 
-      $self->assert($ok, test_msg("Did not see expected debug log messages"));
+      $self->assert($ok, test_msg("Did not see expected Trace log message"));
 
     } else {
       die("Can't read $setup->{log_file}: $!");
@@ -565,6 +570,7 @@ sub proxy_protocol_config_ignore_ifsess_mismatched_class_issue2 {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {

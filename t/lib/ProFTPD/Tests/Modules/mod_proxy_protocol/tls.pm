@@ -113,7 +113,6 @@ sub proxy_protocol_tls_login_with_proxy {
       'mod_tls.c' => {
         TLSEngine => 'on',
         TLSLog => $setup->{log_file},
-        TLSProtocol => 'SSLv3 TLSv1',
         TLSRequired => 'on',
         TLSRSACertificateFile => $server_cert_file,
         TLSCACertificateFile => $ca_file,
@@ -151,7 +150,6 @@ sub proxy_protocol_tls_login_with_proxy {
       }
 
       my $ssl_opts = {
-        SSL_version => 'SSLv23',
         SSL_ca_file => $ca_file,
       };
 

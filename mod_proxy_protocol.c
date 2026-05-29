@@ -1,6 +1,6 @@
 /*
  * ProFTPD - mod_proxy_protocol
- * Copyright (c) 2013-2022 TJ Saunders
+ * Copyright (c) 2013-2026 TJ Saunders
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,8 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Suite 500, Boston, MA 02110-1335, USA.
+ * along with this program; if not, see <https://www.gnu.org/licenses/>.
  *
  * As a special exemption, TJ Saunders and other respective copyright holders
  * give permission to link this program with OpenSSL, and distribute the
@@ -1644,6 +1643,8 @@ static int proxy_protocol_sess_init(void) {
     remote_name = pstrdup(session.pool,
       pr_netaddr_get_sess_remote_name());
 
+    pr_trace_msg(trace_channel, 7, "using proxied source address: %s",
+      pr_netaddr_get_ipstr(proxied_src_addr));
     pr_log_debug(DEBUG9, MOD_PROXY_PROTOCOL_VERSION
       ": using proxied source address: %s",
       pr_netaddr_get_ipstr(proxied_src_addr));

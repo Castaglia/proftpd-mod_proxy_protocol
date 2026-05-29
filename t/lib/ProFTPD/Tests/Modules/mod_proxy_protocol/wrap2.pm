@@ -65,6 +65,7 @@ sub proxy_protocol_wrap2_config_deny {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     IfModules => {
       'mod_delay.c' => {
@@ -103,14 +104,13 @@ sub proxy_protocol_wrap2_config_deny {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port);
-      $client->send_proxy('1.1.1.1', '2.2.2.2', 111, 222);
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       eval { $client->login($setup->{user}, $setup->{passwd}) };
       unless ($@) {
         die("Login succeeded unexpectedly");
       }
     };
-
     if ($@) {
       $ex = $@;
     }
