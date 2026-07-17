@@ -235,7 +235,7 @@ sub proxy_protocol_login_with_proxy {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_login_without_proxy {
@@ -319,7 +319,7 @@ sub proxy_protocol_login_without_proxy {
     $ex = "Connection succeeded unexpectedly";
   }
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_config_denyclass {
@@ -416,7 +416,7 @@ EOC
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_bad_start_of_line {
@@ -494,7 +494,7 @@ sub proxy_protocol_bad_start_of_line {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_bad_end_of_line {
@@ -572,7 +572,7 @@ sub proxy_protocol_bad_end_of_line {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_bad_proto {
@@ -650,7 +650,7 @@ sub proxy_protocol_bad_proto {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_bad_src_addr {
@@ -728,7 +728,7 @@ sub proxy_protocol_bad_src_addr {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_dns_src_addr {
@@ -806,7 +806,7 @@ sub proxy_protocol_dns_src_addr {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_bad_dst_addr {
@@ -884,7 +884,7 @@ sub proxy_protocol_bad_dst_addr {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_dns_dst_addr {
@@ -962,7 +962,7 @@ sub proxy_protocol_dns_dst_addr {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_bad_src_port {
@@ -1040,7 +1040,7 @@ sub proxy_protocol_bad_src_port {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_bad_dst_port {
@@ -1118,7 +1118,7 @@ sub proxy_protocol_bad_dst_port {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_too_large_src_port {
@@ -1196,7 +1196,7 @@ sub proxy_protocol_too_large_src_port {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_too_large_dst_port {
@@ -1274,7 +1274,7 @@ sub proxy_protocol_too_large_dst_port {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_tcp4_with_ipv6_src_addr {
@@ -1354,7 +1354,7 @@ sub proxy_protocol_tcp4_with_ipv6_src_addr {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_tcp4_with_ipv6_dst_addr {
@@ -1434,7 +1434,7 @@ sub proxy_protocol_tcp4_with_ipv6_dst_addr {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_tcp6_with_ipv4_src_addr {
@@ -1514,7 +1514,7 @@ sub proxy_protocol_tcp6_with_ipv4_src_addr {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_tcp6_with_ipv4_dst_addr {
@@ -1594,7 +1594,7 @@ sub proxy_protocol_tcp6_with_ipv4_dst_addr {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_tcp6_with_useipv6_off {
@@ -1674,7 +1674,7 @@ sub proxy_protocol_tcp6_with_useipv6_off {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_matching_src_dst_info {
@@ -1752,7 +1752,7 @@ sub proxy_protocol_matching_src_dst_info {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_unknown_proto {
@@ -1827,7 +1827,7 @@ sub proxy_protocol_unknown_proto {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_active_transfer_with_proxy {
@@ -1928,7 +1928,7 @@ sub proxy_protocol_active_transfer_with_proxy {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_passive_transfer_with_proxy {
@@ -2030,7 +2030,7 @@ sub proxy_protocol_passive_transfer_with_proxy {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_active_transfer_with_proxy_allowforeignaddress {
@@ -2136,7 +2136,7 @@ sub proxy_protocol_active_transfer_with_proxy_allowforeignaddress {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_passive_transfer_with_proxy_allowforeignaddress {
@@ -2242,7 +2242,7 @@ sub proxy_protocol_passive_transfer_with_proxy_allowforeignaddress {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_login_using_proxied_server_address {
@@ -2351,7 +2351,7 @@ EOC
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_login_no_matching_proxied_server_address {
@@ -2445,7 +2445,7 @@ sub proxy_protocol_login_no_matching_proxied_server_address {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 1;

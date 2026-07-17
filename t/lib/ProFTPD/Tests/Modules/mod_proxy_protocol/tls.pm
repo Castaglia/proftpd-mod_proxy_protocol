@@ -200,7 +200,7 @@ sub proxy_protocol_tls_login_with_proxy {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
@@ -268,12 +268,15 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
 
       my $ssl_opts = {
-        SSL_version => 'SSLv23',
         SSL_ca_file => $ca_file,
+        SSL_verify_mode => IO::Socket::SSL::SSL_VERIFY_NONE(),
+
+        # Disable verification of the CN in the server cert
+        SSL_verifycn_scheme => 'none',
       };
 
       if ($ENV{TEST_VERBOSE}) {
-        $ssl_opts->{Debug} = 2;
+        $ssl_opts->{Debug} = 3;
       }
 
       my $ssl_client = IO::Socket::SSL->start_SSL($client, %$ssl_opts);
@@ -285,22 +288,22 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
 
       my $ok = $ssl_client->response();
       unless ($ok == CMD_OK || $ok == CMD_MORE) {
-        die($client->message);
+        die($ssl_client->message);
       }
 
       $ok = $ssl_client->command("USER", $setup->{user})->response();
       unless ($ok == CMD_OK || $ok == CMD_MORE) {
-        die($client->message);
+        die($ssl_client->message);
       }
 
       $ok = $ssl_client->command("PASS", $setup->{passwd})->response();
       unless ($ok == CMD_OK || $ok == CMD_MORE) {
-        die($client->message);
+        die($ssl_client->message);
       }
 
       $ok = $ssl_client->command("QUIT")->response();
       unless ($ok == CMD_OK) {
-        die($client->message);
+        die($ssl_client->message);
       }
     };
     if ($@) {
@@ -324,7 +327,7 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_tls_without_proxy_v1_bytes {
@@ -406,7 +409,7 @@ sub proxy_protocol_tls_without_proxy_v1_bytes {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_tls_without_proxy_v2_bytes {
@@ -488,7 +491,7 @@ sub proxy_protocol_tls_without_proxy_v2_bytes {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_starttls_without_proxy_v1_bytes {
@@ -576,7 +579,7 @@ sub proxy_protocol_starttls_without_proxy_v1_bytes {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 sub proxy_protocol_starttls_without_proxy_v2_bytes {
@@ -664,7 +667,7 @@ sub proxy_protocol_starttls_without_proxy_v2_bytes {
   server_stop($setup->{pid_file});
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 1;

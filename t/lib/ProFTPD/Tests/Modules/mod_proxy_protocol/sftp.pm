@@ -175,7 +175,7 @@ sub proxy_protocol_sftp_with_proxy {
     $ex = $@;
   }
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 1;
