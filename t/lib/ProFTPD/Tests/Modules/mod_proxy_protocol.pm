@@ -208,7 +208,7 @@ sub proxy_protocol_login_with_proxy {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       $client->login($setup->{user}, $setup->{passwd});
       $client->quit();
@@ -290,7 +290,6 @@ sub proxy_protocol_login_without_proxy {
       $client->login($setup->{user}, $setup->{passwd});
       $client->quit();
     };
-
     if ($@) {
       $ex = $@;
     }
@@ -385,7 +384,7 @@ EOC
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       eval { $client->login($setup->{user}, $setup->{passwd}) };
       unless ($@) {
@@ -465,7 +464,7 @@ sub proxy_protocol_bad_start_of_line {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           "GET /index.html HTTP/1.1.1\r\n")
       };
       unless ($@) {
@@ -543,7 +542,7 @@ sub proxy_protocol_bad_end_of_line {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '1.1.1.1', '2.2.2.2', 111, '222 ' . 'A' x 128]);
       };
       unless ($@) {
@@ -621,7 +620,7 @@ sub proxy_protocol_bad_proto {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['IPV4', '1.1.1.1', '2.2.2.2', 111, '222']);
       };
       unless ($@) {
@@ -699,7 +698,7 @@ sub proxy_protocol_bad_src_addr {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', 'foo', '2.2.2.2', 111, '222']);
       };
       unless ($@) {
@@ -777,7 +776,7 @@ sub proxy_protocol_dns_src_addr {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', 'localhost', '2.2.2.2', 111, '222']);
       };
       unless ($@) {
@@ -855,7 +854,7 @@ sub proxy_protocol_bad_dst_addr {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '1.1.1.1', 'bar', 111, '222']);
       };
       unless ($@) {
@@ -933,7 +932,7 @@ sub proxy_protocol_dns_dst_addr {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '1.1.1.1', 'localhost', 111, '222']);
       };
       unless ($@) {
@@ -1011,7 +1010,7 @@ sub proxy_protocol_bad_src_port {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '1.1.1.1', '2.2.2.2', 'baz', '222']);
       };
       unless ($@) {
@@ -1089,7 +1088,7 @@ sub proxy_protocol_bad_dst_port {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '1.1.1.1', '2.2.2.2', 111, 'quxx']);
       };
       unless ($@) {
@@ -1167,7 +1166,7 @@ sub proxy_protocol_too_large_src_port {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '1.1.1.1', '2.2.2.2', 70000, 222]);
       };
       unless ($@) {
@@ -1245,7 +1244,7 @@ sub proxy_protocol_too_large_dst_port {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '1.1.1.1', '2.2.2.2', 111, 70000]);
       };
       unless ($@) {
@@ -1325,7 +1324,7 @@ sub proxy_protocol_tcp4_with_ipv6_src_addr {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '::1', '2.2.2.2', 111, 222]);
       };
       unless ($@) {
@@ -1405,7 +1404,7 @@ sub proxy_protocol_tcp4_with_ipv6_dst_addr {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '1.1.1.1', '::2', 111, 222]);
       };
       unless ($@) {
@@ -1485,7 +1484,7 @@ sub proxy_protocol_tcp6_with_ipv4_src_addr {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP6', '1.1.1.1', '::2', 111, 222]);
       };
       unless ($@) {
@@ -1565,7 +1564,7 @@ sub proxy_protocol_tcp6_with_ipv4_dst_addr {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP6', '::1', '2.2.2.2', 111, 222]);
       };
       unless ($@) {
@@ -1645,7 +1644,7 @@ sub proxy_protocol_tcp6_with_useipv6_off {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP6', '::1', '::2', 111, 222]);
       };
       unless ($@) {
@@ -1723,7 +1722,7 @@ sub proxy_protocol_matching_src_dst_info {
       sleep(2);
 
       eval {
-        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           ['TCP4', '1.1.1.1', '1.1.1.1', 111, 111]);
       };
       unless ($@) {
@@ -1800,7 +1799,7 @@ sub proxy_protocol_unknown_proto {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['UNKNOWN', '1.1.1.1', '2.2.2.2', 111, 222]);
       $client->login($setup->{user}, $setup->{passwd});
       $client->quit();
@@ -1896,7 +1895,7 @@ sub proxy_protocol_active_transfer_with_proxy {
 
       $ENV{FTP_PASSIVE} = 0;
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 0,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       $client->login($setup->{user}, $setup->{passwd});
 
@@ -1997,7 +1996,7 @@ sub proxy_protocol_passive_transfer_with_proxy {
 
       $ENV{FTP_PASSIVE} = 1;
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       $client->login($setup->{user}, $setup->{passwd});
 
@@ -2099,7 +2098,7 @@ sub proxy_protocol_active_transfer_with_proxy_allowforeignaddress {
 
       $ENV{FTP_PASSIVE} = 0;
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 0,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       $client->login($setup->{user}, $setup->{passwd});
 
@@ -2205,7 +2204,7 @@ sub proxy_protocol_passive_transfer_with_proxy_allowforeignaddress {
 
       $ENV{FTP_PASSIVE} = 1;
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       $client->login($setup->{user}, $setup->{passwd});
 
@@ -2325,7 +2324,7 @@ EOC
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', $proxied_dst_addr, 111, $proxied_dst_port]);
       $client->login($setup->{user}, $setup->{passwd});
       $client->quit();
@@ -2412,7 +2411,7 @@ sub proxy_protocol_login_no_matching_proxied_server_address {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', $proxied_dst_addr, 111, $proxied_dst_port]);
 
       # Our requested server address doesn't exist, thus we expect this

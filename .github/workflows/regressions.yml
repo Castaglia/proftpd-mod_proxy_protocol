@@ -51,13 +51,13 @@ jobs:
         run: |
           apt-get update -qq
           # for builds
-          apt-get install -y gcc git make tzdata
+          apt-get install -y --no-install-recommends clang gcc git make tzdata build-essential
 
           # for OpenSSL support
-          apt-get install -y libssl-dev
+          apt-get install -y --no-install-recommends libssl-dev
 
           # for integration/regression tests
-          apt-get install -y \
+          apt-get install -y --no-install-recommends \
             libauthen-oath-perl \
             libcompress-raw-zlib-perl \
             libdata-dumper-simple-perl \
@@ -89,7 +89,7 @@ jobs:
         # NOTE: Docker does not have good IPv6 support, hence we disable it.
         run: |
           cd proftpd
-          ./configure --enable-ctrls --disable-ipv6 --with-modules=mod_sftp::mod_tls:mod_wrap2:mod_wrap2_file:mod_ifsession:mod_proxy_protocol
+          CC=clang ./configure --enable-devel=sanitize --enable-ctrls --disable-ipv6 --with-modules=mod_sftp::mod_tls:mod_wrap2:mod_wrap2_file:mod_ifsession:mod_proxy_protocol
           make
           ./proftpd -V
           make install

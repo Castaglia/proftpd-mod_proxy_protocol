@@ -104,7 +104,7 @@ sub proxy_protocol_wrap2_config_deny {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       eval { $client->login($setup->{user}, $setup->{passwd}) };
       unless ($@) {
@@ -130,10 +130,9 @@ sub proxy_protocol_wrap2_config_deny {
 
   # Stop server
   server_stop($setup->{pid_file});
-
   $self->assert_child_ok($pid);
 
-  test_cleanup($setup->{log_file}, $ex);
+  test_cleanup($setup, $ex);
 }
 
 1;

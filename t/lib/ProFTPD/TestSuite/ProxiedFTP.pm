@@ -12,7 +12,7 @@ my $proxy_info = undef;
 
 sub new {
   my $class = shift;
-  my ($addr, $port, $proxy, $timeout) = @_;
+  my ($addr, $port, $use_passive_transfers, $proxy, $timeout) = @_;
   $timeout = 5 unless defined($timeout);
   my $debug = undef;
 
@@ -26,6 +26,7 @@ sub new {
     Port => $port,
     Timeout => $timeout,
     Debug => $debug,
+    Passive => $use_passive_transfers,
   );
 
   unless ($self) {

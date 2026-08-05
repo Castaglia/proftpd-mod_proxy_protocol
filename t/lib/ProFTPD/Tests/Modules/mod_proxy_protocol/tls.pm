@@ -142,7 +142,7 @@ sub proxy_protocol_tls_login_with_proxy {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       my $ok = $client->command("AUTH", "TLS")->response();
       unless ($ok == CMD_OK || $ok == CMD_MORE) {
@@ -264,7 +264,7 @@ sub proxy_protocol_tls_login_with_proxy_useimplicitssl {
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
 
       my $ssl_opts = {
