@@ -50,6 +50,7 @@ sub maxhostsperuser_one {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     MaxHostsPerUser => $max_hosts,
 
@@ -87,12 +88,12 @@ sub maxhostsperuser_one {
       sleep(1);
 
       # First client should be able to connect and log in...
-      my $client1 = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client1 = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '127.0.0.1', '127.0.0.1', 12345, $port]);
       $client1->login($setup->{user}, $setup->{passwd});
 
       # ...but the second client should be able to connect, but not login.
-      my $client2 = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client2 = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         $proxy_info);
       eval { $client2->login($setup->{user}, $setup->{passwd}) };
       unless ($@) {
@@ -140,6 +141,7 @@ sub maxhostsperuser_one_multi_conns {
 
     AuthUserFile => $setup->{auth_user_file},
     AuthGroupFile => $setup->{auth_group_file},
+    AuthOrder => 'mod_auth_file.c',
 
     MaxHostsPerUser => $max_hosts,
 
@@ -177,12 +179,12 @@ sub maxhostsperuser_one_multi_conns {
       sleep(1);
 
       # First client should be able to connect and log in...
-      my $client1 = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client1 = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '127.0.0.1', '127.0.0.1', 12345, $port]);
       $client1->login($setup->{user}, $setup->{passwd});
 
       # ...but the second client should be able to connect, but not login.
-      my $client2 = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client2 = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         $proxy_info);
       eval { $client2->login($setup->{user}, $setup->{passwd}) };
       unless ($@) {
@@ -194,7 +196,7 @@ sub maxhostsperuser_one_multi_conns {
 
       my $clients = [];
       for (my $i = 0; $i < 10; $i++) {
-        my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+        my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
           $proxy_info);
         push(@$clients, $client);
       }

@@ -119,7 +119,7 @@ EOC
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       $client->login($setup->{user}, $setup->{passwd});
       $client->quit();
@@ -209,7 +209,7 @@ EOC
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       eval { $client->user($setup->{user}) };
       unless ($@) {
@@ -308,7 +308,7 @@ EOC
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       eval { $client->login($setup->{user}, $setup->{passwd}); };
       unless ($@) {
@@ -403,7 +403,7 @@ EOC
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', '1.1.1.1', '2.2.2.2', 111, 222]);
       $client->login($setup->{user}, $setup->{passwd});
       $client->quit();
@@ -498,7 +498,7 @@ EOC
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', $proxied_src_addr, '2.2.2.2', 111, 222]);
       $client->login($setup->{user}, $setup->{passwd});
       $client->quit();
@@ -620,7 +620,7 @@ EOC
     eval {
       sleep(2);
 
-      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port,
+      my $client = ProFTPD::TestSuite::ProxiedFTP->new('127.0.0.1', $port, 1,
         ['TCP4', $proxied_src_addr, '2.2.2.2', 111, 222]);
       eval { $client->user($setup->{user}) };
       unless ($@) {
