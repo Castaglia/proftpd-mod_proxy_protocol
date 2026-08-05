@@ -54,6 +54,7 @@ if (scalar(@ARGV) > 0) {
 
 } else {
   $test_files = [qw(
+    t/config/allowforeignaddress.t
     t/config/maxhostsperuser.t
     t/modules/mod_proxy_protocol.t
   )];
