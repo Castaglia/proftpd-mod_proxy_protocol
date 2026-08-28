@@ -89,7 +89,7 @@ jobs:
         # NOTE: Docker does not have good IPv6 support, hence we disable it.
         run: |
           cd proftpd
-          CC=clang ./configure --enable-devel=sanitize --enable-ctrls --disable-ipv6 --with-modules=mod_sftp::mod_tls:mod_wrap2:mod_wrap2_file:mod_ifsession:mod_proxy_protocol
+          CC=clang ./configure --enable-devel=sanitize --enable-ctrls --disable-ipv6 --with-modules=mod_dnsbl:mod_sftp::mod_tls:mod_wrap2:mod_wrap2_file:mod_ifsession:mod_proxy_protocol
           make
           ./proftpd -V
           make install

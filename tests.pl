@@ -64,6 +64,11 @@ if (scalar(@ARGV) > 0) {
   my $order = 0;
 
   my $FEATURE_TESTS = {
+    't/modules/mod_dnsbl.t' => {
+      order => ++$order,
+      test_class => [qw(mod_dnsbl mod_proxy_protocol)],
+    },
+
     't/modules/mod_proxy_protocol/ifsession.t' => {
       order => ++$order,
       test_class => [qw(mod_ifsession mod_proxy_protocol)],
