@@ -677,7 +677,7 @@ static void add_tlv_session_note(const char *key, const char *tlv_val,
   (void) pr_table_add(session.notes, key, val, valsz);
 }
 
-static const char haproxy_v2_sig[12] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
+static const char __attribute__ ((__nonstring__)) haproxy_v2_sig[12] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
 
 /* See: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#proxy-protocol
  */
@@ -1665,6 +1665,8 @@ static int proxy_protocol_sess_init(void) {
       session.c->remote_name = pr_netaddr_get_ipstr(session.c->remote_addr);
     }
 
+    pr_netaddr_set_sess_addrs();
+
     pr_log_debug(DEBUG0, MOD_PROXY_PROTOCOL_VERSION
       ": UPDATED client remote address/name: %s/%s (WAS %s/%s)",
       pr_netaddr_get_ipstr(pr_netaddr_get_sess_remote_addr()),
@@ -1678,7 +1680,7 @@ static int proxy_protocol_sess_init(void) {
        */
 
       if (pr_netaddr_cmp(session.c->local_addr, proxied_dst_addr) != 0 ||
-          session.c->local_port != proxied_dst_port) {
+          session.c->local_port != (int) proxied_dst_port) {
 
         /* Notify any listeners (e.g. mod_autohost) of the proxied address, to
          * give them a chance to update/modify the configuration.
